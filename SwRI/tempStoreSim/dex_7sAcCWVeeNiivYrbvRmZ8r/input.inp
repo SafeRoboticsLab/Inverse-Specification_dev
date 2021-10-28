@@ -1,0 +1,168 @@
+&aircraft_data
+   aircraft%cname          = 'UAV'      ! M  name of aircraft
+   aircraft%ctype          = 'SymCPS UAV Design' ! M  type of aircraft
+   aircraft%num_wings      = 0 ! M number of wings in aircraft
+   aircraft%mass          = 1.701824531595622
+   aircraft%x_cm          = -8.646866725464683
+   aircraft%y_cm          = 8.637788721468073
+   aircraft%z_cm          = -14.415246712361746
+   aircraft%x_fuse          = -8.646866725464683
+   aircraft%y_fuse          = 8.637788721468073
+   aircraft%z_fuse          = -14.415246712361746
+   aircraft%X_fuseuu      = 16815.241870353457
+   aircraft%Y_fusevv      = 19521.494691292115
+   aircraft%Z_fuseww      = 51435.15300781795
+   aircraft%Ixx           = 56413.2537328118
+   aircraft%Iyy           = 70987.6681253594
+   aircraft%Izz           = 125381.14830157819
+   aircraft%Ixy           = -266.06866799396784
+   aircraft%Ixz           = -209.45261634088413
+   aircraft%Iyz           = 209.55460497880281
+   aircraft%uc_initial     = 0.4d0, 0.5d0, 0.6d0, 0.7d0 ! inputs for controls
+   aircraft%time           = 0.d0        ! initial time (default = 0.)
+   aircraft%dt             = 1.d-03      ! s  fixed time step
+   aircraft%dt_output      = 1.0d0       ! s  time between output lines
+   aircraft%time_end       = 1000.d0        ! s  end time 
+   aircraft%Unwind         = 0.d0        ! North wind speed in world frame
+   aircraft%Vewind         = 0.d0        ! East wind speed in  world frame
+   aircraft%Wdwind         = 0.d0        ! Down wind speed in world frame
+   aircraft%debug          = 0           ! verbose printouts from fderiv
+   aircraft%num_propellers  = 4
+   aircraft%num_batteries   = 2
+   aircraft%i_analysis_type = 3 
+   aircraft%x_initial      = 0.d0, 0.d0, 0.d0, 0.d0, 0.d0, 0.d0, 1.d0, 0.d0, 0.d0, 0.d0, 0.d0, 0.d0, 0.d0
+   aircraft%uc_initial     = 0.5d0, 0.5d0, 0.5d0, 0.5d0
+
+!   Propeller(1 uses components named Front_Prop_R, Front_Motor_R, Front_ESC_R
+   propeller(1)%cname   = 'apc_propellers_4_75x4_75EP' 
+   propeller(1)%ctype   = 'MR'
+   propeller(1)%prop_fname   = '../../propeller/PER3_475x475E.dat' 
+   propeller(1)%x   = 340.32000000000005
+   propeller(1)%y   = -340.63999999999993
+   propeller(1)%z   = -35.56166666666668
+   propeller(1)%nx   = -0.0
+   propeller(1)%ny   = -0.0
+   propeller(1)%nz   = -1.0
+   propeller(1)%radius   = 60.325 
+   propeller(1)%Ir      = 4.84001048125 
+   propeller(1)%motor_fname  = '../../Motors/KDE2306XF_2550' 
+   propeller(1)%KV   = 2550.0 
+   propeller(1)%KT   = 0.0037 
+   propeller(1)%I_max   = 34.0 
+   propeller(1)%I_idle   = 1.2 
+   propeller(1)%maxpower   = 629.0 
+   propeller(1)%Rw   = 0.044 
+   propeller(1)%icontrol   = 4 
+!   propeller(1)%ibattery   = 1 
+   propeller(1)%ibattery   = 1 
+   propeller(1)%spin   = -1
+
+!   Propeller(2 uses components named Rear_Prop_L, Rear_Motor_L, Rear_ESC_L
+   propeller(2)%cname   = 'apc_propellers_4_75x4_75EP' 
+   propeller(2)%ctype   = 'MR'
+   propeller(2)%prop_fname   = '../../propeller/PER3_475x475E.dat' 
+   propeller(2)%x   = -340.31999999999994
+   propeller(2)%y   = 340.63999999999993
+   propeller(2)%z   = -35.561666666666696
+   propeller(2)%nx   = -0.0
+   propeller(2)%ny   = -0.0
+   propeller(2)%nz   = -1.0
+   propeller(2)%radius   = 60.325 
+   propeller(2)%Ir      = 4.84001048125 
+   propeller(2)%motor_fname  = '../../Motors/KDE2306XF_2550' 
+   propeller(2)%KV   = 2550.0 
+   propeller(2)%KT   = 0.0037 
+   propeller(2)%I_max   = 34.0 
+   propeller(2)%I_idle   = 1.2 
+   propeller(2)%maxpower   = 629.0 
+   propeller(2)%Rw   = 0.044 
+   propeller(2)%icontrol   = 2 
+!   propeller(2)%ibattery   = 1 
+   propeller(2)%ibattery   = 2 
+   propeller(2)%spin   = -1
+
+!   Propeller(3 uses components named Front_Prop_L, Front_Motor_L, Front_ESC_L
+   propeller(3)%cname   = 'apc_propellers_4_75x4_75E' 
+   propeller(3)%ctype   = 'MR'
+   propeller(3)%prop_fname   = '../../propeller/PER3_475x475E.dat' 
+   propeller(3)%x   = 340.32000000000005
+   propeller(3)%y   = 340.63999999999993
+   propeller(3)%z   = -35.561666666666675
+   propeller(3)%nx   = -0.0
+   propeller(3)%ny   = -0.0
+   propeller(3)%nz   = -1.0
+   propeller(3)%radius   = 60.325 
+   propeller(3)%Ir      = 4.84001048125 
+   propeller(3)%motor_fname  = '../../Motors/KDE2306XF_2550' 
+   propeller(3)%KV   = 2550.0 
+   propeller(3)%KT   = 0.0037 
+   propeller(3)%I_max   = 34.0 
+   propeller(3)%I_idle   = 1.2 
+   propeller(3)%maxpower   = 629.0 
+   propeller(3)%Rw   = 0.044 
+   propeller(3)%icontrol   = 3 
+!   propeller(3)%ibattery   = 1 
+   propeller(3)%ibattery   = 1 
+   propeller(3)%spin   = 1
+
+!   Propeller(4 uses components named Rear_Prop_R, Rear_Motor_R, Rear_ESC_R
+   propeller(4)%cname   = 'apc_propellers_4_75x4_75E' 
+   propeller(4)%ctype   = 'MR'
+   propeller(4)%prop_fname   = '../../propeller/PER3_475x475E.dat' 
+   propeller(4)%x   = -340.32
+   propeller(4)%y   = -340.63999999999993
+   propeller(4)%z   = -35.56166666666668
+   propeller(4)%nx   = -0.0
+   propeller(4)%ny   = -0.0
+   propeller(4)%nz   = -1.0
+   propeller(4)%radius   = 60.325 
+   propeller(4)%Ir      = 4.84001048125 
+   propeller(4)%motor_fname  = '../../Motors/KDE2306XF_2550' 
+   propeller(4)%KV   = 2550.0 
+   propeller(4)%KT   = 0.0037 
+   propeller(4)%I_max   = 34.0 
+   propeller(4)%I_idle   = 1.2 
+   propeller(4)%maxpower   = 629.0 
+   propeller(4)%Rw   = 0.044 
+   propeller(4)%icontrol   = 1 
+!   propeller(4)%ibattery   = 1 
+   propeller(4)%ibattery   = 2 
+   propeller(4)%spin   = 1
+
+!   Battery(1) is component named: Battery_0
+   battery(1)%num_cells   = 3 
+   battery(1)%voltage   = 11.1 
+   battery(1)%capacity   = 5000 
+   battery(1)%C_Continuous   = 75 
+   battery(1)%C_Peak   = 150 
+
+!   Battery(2) is component named: Battery_1
+   battery(2)%num_cells   = 3 
+   battery(2)%voltage   = 11.1 
+   battery(2)%capacity   = 5000 
+   battery(2)%C_Continuous   = 75 
+   battery(2)%C_Peak   = 150 
+
+!   Controls
+  ! control%i_flight_path = 1 
+   !control%requested_lateral_speed = 10.0 
+  ! control%requested_vertical_speed = 0.0 
+   !control%iaileron = 5 
+  ! control%iflap = 6 
+  ! control%Q_position = 1.0 
+   !control%Q_velocity = 1.0 
+  ! control%Q_angular_velocity = 1.0 
+  ! control%Q_angles = 1.0 
+  ! control%R= 1.0 
+   
+   control%i_flight_path = 5
+   control%requested_lateral_speed = 26.019805936722737
+   control%requested_vertical_speed = 0
+   control%iaileron = 5
+   control%iflap = 6
+   control%Q_position = 3.9971661079507594
+   control%Q_velocity = 3.6711272495701843
+   control%Q_angular_velocity = 3.3501992857774856
+   control%Q_angles = 3.0389318577493087
+   control%R = 4.422413267471787
+/
