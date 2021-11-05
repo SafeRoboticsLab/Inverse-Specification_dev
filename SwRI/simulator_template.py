@@ -6,7 +6,7 @@ from flight_dynamics import SWRIFlightDynamics
 sim_dict = {
     # 'template_file': 'FlightDyn_7By3.inp',
     'template_file': os.path.join('template', 'FlightDyn_quadH.inp'),
-    # 'exec_file': os.path.join("flight-dynamics-model", "bin", "new_fdm")
+    'exec_file': os.path.join("new_fdm")
 }
 
 simulator = SWRIFlightDynamics(**sim_dict)
