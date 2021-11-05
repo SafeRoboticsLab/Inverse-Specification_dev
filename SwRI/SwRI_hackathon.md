@@ -57,6 +57,8 @@
 * SWRIFlightDynamics with kwargs
   * template_file
   * exec_file
+* The black-box simulator can be obtained here:
+https://git.isis.vanderbilt.edu/SwRI/flight-dynamics-model
 
 ## Optimize
 ### Variables
