@@ -1,4 +1,9 @@
+**/__pycache__
+**/.DS_store
 **/tempStoreSim
-**/__pycache__/*
+**/scratch
+
+# 
+*.out
 SwRI/flight-dynamics-model/
 SwRI/new_fdm
