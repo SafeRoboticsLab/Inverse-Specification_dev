@@ -1,29 +1,60 @@
 # Please contact the author(s) of this library if you have any questions.
 # Authors: Kai-Chieh Hsu ( kaichieh@princeton.edu )
 
-# Modified from str.py (Perspecta Labs)
-
 import numpy as np
-import os
-import types
 
-
-os.sys.path.append('..')
-from .flight_dynamics import SWRIFlightDynamics
+from flight_dynamics import SWRIFlightDynamics
 from pymoo.core.problem import ElementwiseProblem
 
 
 class SWRIsim(ElementwiseProblem):
 
-  def __init__(self):
-    xl = np.zeros(10)
-    xl[0] = -5.0
+  def __init__(self, template_file, exec_file):
+    self.sim = SWRIFlightDynamics(template_file, exec_file)
+    xl = np.zeros(6)
+    xu = np.array([5., 5., 5., 5., 5., 50.])
 
-    xu = np.ones(10)
-    xu[0] = 5.0
+    super().__init__(n_var=6, n_obj=21, n_constr=0, xl=xl, xu=xu)
 
-    super().__init__(n_var=10, n_obj=1, n_constr=2, xl=xl, xu=xu)
+  def _input_wrapper(self, x):
+    """Wraps designs to fit in the format of the simulator input.
+
+    Args:
+        x (np.ndarray): features of a design
+
+    Returns:
+        dict: an input for the simulator.
+    """
+    input = dict(
+        # region: fixed parameters
+        control_iaileron=5,
+        control_iflap=6,
+        control_i_flight_path=5,
+        control_requested_vertical_speed=0,
+        # endregion
+        # region: inputs, LQR parameters
+        control_Q_position=x[0],
+        control_Q_velocity=x[1],
+        control_Q_angular_velocity=x[2],
+        control_Q_angles=x[3],
+        control_R=x[4],
+        control_requested_lateral_speed=x[5],
+        # endregion
+    )
+    return input
+
+  def _output_extracter(self, output, get_score=False, **kwargs):
+    y = []
+    for key, value in output.items():
+      if (
+          key != "Hackathon"
+          and key != "Path_traverse_score_based_on_requirements"
+      ):
+        y.append(value)
+
+    return np.array(y)
 
   def _evaluate(self, x, out, *args, **kwargs):
-    out["F"] = np.sum((x - 0.5)**2)
-    out["G"] = np.column_stack([0.1 - out["F"], out["F"] - 0.5])
+    input = self._input_wrapper(x)
+    output = self.sim.sim(input, delete_folder=True)
+    out["F"] = self._output_extracter(output, get_score=False)

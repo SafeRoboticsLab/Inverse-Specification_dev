@@ -53,23 +53,10 @@ class MetricsReader():
 
 class SWRIFlightDynamics():
 
-  def __init__(self, **kwargs):
-    if 'template_file' not in kwargs:
-      print(
-          "DEXTER: ERROR (SWRI FlightDynamics)-",
-          "Template file cannot be found "
-      )
-      sys.exit()
-    else:
-      self.template_file = kwargs['template_file']
+  def __init__(self, template_file, exec_file, **kwargs):
+    self.template_file = template_file
     self.templateprocessor = TemplateProcessor(self.template_file)
-
-    # copy the executable to the current directory
-    if 'exec_file' not in kwargs:
-      mydir = os.path.dirname(os.path.realpath(__file__))
-      self.exec_file = os.path.join(mydir, 'new_fdm')
-    else:
-      self.exec_file = kwargs['exec_file']
+    self.exec_file = exec_file
     self.output_file = "metrics.out"
     self.cwd = os.getcwd()
     self.run_number = 0
