@@ -13,14 +13,14 @@ class HumanSimulator(ABC):
     self.ranker = ranker
     self.confirmer = confirmer
 
-  def getRanking(self, query, **kwargs):
+  def get_ranking(self, query, **kwargs):
     """Gets the preference of designs or returns "cannot distinguish".
 
     Args:
         query (np.array, (#designs x #features)): designs represented by
             their features (objectives defined in `problem`)
     """
-    return self.ranker.getRanking(query, **kwargs)
+    return self.ranker.get_ranking(query, **kwargs)
 
   def confirm(self, query, **kwargs):
     """Accepts or rejects this design.

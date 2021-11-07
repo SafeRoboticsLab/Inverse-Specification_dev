@@ -99,7 +99,7 @@ class RewardNN(Inference):
   def get_prob_without_cons(self, q_1s, q_2s):
     trajectories_1 = self.extract(q_1s)
     trajectories_2 = self.extract(q_2s)
-    batchsize = trajectories_1.shape[0]
+    batch_size = trajectories_1.shape[0]
 
     u_1 = self.get_utility_traj(trajectories_1)
     u_2 = self.get_utility_traj(trajectories_2)
@@ -107,7 +107,7 @@ class RewardNN(Inference):
     p_1 = p_1.reshape(-1)
     p_2 = 1 - p_1
 
-    p = torch.empty(size=(batchsize, 2)).to(self.device)
+    p = torch.empty(size=(batch_size, 2)).to(self.device)
     p[:, 0] = p_1.clone()
     p[:, 1] = p_2.clone()
     p.retain_grad()
@@ -117,7 +117,7 @@ class RewardNN(Inference):
     """Predicts the ranking of the input trajectories.
 
     Args:
-        trajectories (np.ndarray): has shape (batchsize, length,
+        trajectories (np.ndarray): has shape (batch_size, length,
         stateDim+actionDim).
 
     Returns:
@@ -145,14 +145,14 @@ class RewardNN(Inference):
     pass
 
   #== UPDATING ==
-  def learn(self, numIter, checkPeriod=100, initialize=False):
+  def learn(self, numIter, check_period=100, initialize=False):
     torch.autograd.set_detect_anomaly(True)
     if initialize:
       print("Init!")
       self.initialize()
 
     #== Train ==
-    lossRecord = np.empty(shape=(numIter, 3))
+    loss_record = np.empty(shape=(numIter, 3))
     for it in range(numIter):
       self.reward.train()
       lr_cur = self.optimizer.state_dict()['param_groups'][0]['lr']
@@ -205,7 +205,7 @@ class RewardNN(Inference):
       reg_value = reg.detach().cpu().numpy()
 
       print("[{:d}]: {:.2f}".format(it, loss_value), end='\r')
-      if (it+1) % checkPeriod == 0:
+      if (it+1) % check_period == 0:
         print("[{:d} / {:d}]: ".format(it, numIter), end='')
         print(
             "(loss, clf, reg) = ({:.2f}, {:.2f}, {:.2f}) ".format(
@@ -214,7 +214,7 @@ class RewardNN(Inference):
         )
         print("with learning rate = {:.2e}".format(lr_cur))
 
-      lossRecord[it, 0] = loss_value
-      lossRecord[it, 1] = clf_loss_value
-      lossRecord[it, 2] = reg_value
-    return lossRecord
+      loss_record[it, 0] = loss_value
+      loss_record[it, 1] = clf_loss_value
+      loss_record[it, 2] = reg_value
+    return loss_record

@@ -9,37 +9,35 @@ import argparse
 import pickle
 import time
 
-
 timestr = time.strftime("%m-%d-%H_%M")
 import os
-
 
 os.sys.path.append(os.path.join(os.getcwd(), 'src'))
 
 from auv.problem import AUVsim
-from utils import setSeed, plotResult3D, plotResultPairwise
+from utils import set_seed, plot_result_3D, plot_result_pairwise
 
 # region: == ARGS ==
 parser = argparse.ArgumentParser()
 
 # problem parameters
 parser.add_argument(
-    "-p", "--problemType", help="problem type", default='p2', type=str,
+    "-p", "--problem_type", help="problem type", default='p2', type=str,
     choices=['p1', 'p2', 'p3']
 )
 
 # GA parameters
 parser.add_argument(
-    "-rnd", "--randomSeed", help="random seed", default=0, type=int
+    "-rnd", "--random_seed", help="random seed", default=0, type=int
 )
 parser.add_argument(
-    "-psz", "--popSize", help="population size", default=25, type=int
+    "-psz", "--pop_size", help="population size", default=25, type=int
 )
 parser.add_argument(
-    "-ng", "--numGen", help="#generation", default=200, type=int
+    "-ng", "--num_gen", help="#generation", default=200, type=int
 )
 parser.add_argument(
-    "-cg", "--checkGeneration", help="check period", default=25, type=int
+    "-cg", "--check_generation", help="check period", default=25, type=int
 )
 parser.add_argument(
     "-o", "--optimizer", help="problem type", default='oo', type=str,
@@ -48,14 +46,14 @@ parser.add_argument(
 
 args = parser.parse_args()
 print(args)
-outFolder = os.path.join('scratch', 'AUV_' + args.problemType, 'NSGA2')
+outFolder = os.path.join('scratch', 'AUV_' + args.problem_type, 'NSGA2')
 figFolder = os.path.join(outFolder, 'figure')
 os.makedirs(figFolder, exist_ok=True)
 # endregion
 
 # region: == Define Problem ==
-setSeed(seed_val=args.randomSeed, useTorch=True)
-problem = AUVsim(problemType=args.problemType)
+set_seed(seed_val=args.random_seed, use_torch=True)
+problem = AUVsim(problem_type=args.problem_type)
 n_obj = problem.n_obj
 objective_names = problem.fparams.func.objective_names
 print(problem)
@@ -102,15 +100,15 @@ mutation = MixedVariableMutation(
 )
 
 algorithm = NSGA2(
-    pop_size=args.popSize,
-    n_offsprings=args.popSize,
+    pop_size=args.pop_size,
+    n_offsprings=args.pop_size,
     sampling=sampling,
     crossover=crossover,
     mutation=mutation,
     eliminate_duplicates=True,
 )
 # termination criterion
-termination = get_termination("n_gen", args.numGen)
+termination = get_termination("n_gen", args.num_gen)
 # endregion
 
 # region: == Define Solver ==
@@ -123,7 +121,8 @@ if args.optimizer == 'oo':
   # let the algorithm know what problem we are intending to solve and provide
   # other attributes
   obj.setup(
-      problem, termination=termination, seed=args.randomSeed, save_history=True
+      problem, termination=termination, seed=args.random_seed,
+      save_history=True
   )
 
   # until the termination criterion has not been met
@@ -133,16 +132,16 @@ if args.optimizer == 'oo':
     obj.next()
 
     # check performance
-    if (obj.n_gen - 1) % args.checkGeneration == 0:
+    if (obj.n_gen - 1) % args.check_generation == 0:
       n_gen = obj.n_gen
       n_nds = len(obj.opt)
       CV = obj.opt.get('CV').min()
       print(f"gen[{n_gen}]: n_nds: {n_nds} CV: {CV}")
       F = -obj.opt.get('F')
       if n_obj == 3:
-        fig = plotResult3D(F, objective_names, axis_bound)
+        fig = plot_result_3D(F, objective_names, axis_bound)
       else:
-        fig = plotResultPairwise(n_obj, F, objective_names, axis_bound)
+        fig = plot_result_pairwise(n_obj, F, objective_names, axis_bound)
       fig.supxlabel(str(n_gen), fontsize=20)
       fig.tight_layout()
       figProFolder = os.path.join(figFolder, 'progress')
@@ -161,8 +160,8 @@ if args.optimizer == 'oo':
 elif args.optimizer == 'built-in':
   # get results via built-in minimization
   res = minimize(
-      problem, algorithm, termination, seed=args.randomSeed, save_history=True,
-      verbose=False
+      problem, algorithm, termination, seed=args.random_seed,
+      save_history=True, verbose=False
   )
 
   #== Result ==
@@ -176,22 +175,22 @@ elif args.optimizer == 'built-in':
     CV.append(alg_tmp.pop.get("CV"))
 
   fsz = 16
-  nRow = 5
-  nCol = 5
-  space = np.floor(args.numGen / (nRow*nCol))
-  subfigSz = 3
-  figsize = (nCol * subfigSz, nRow * subfigSz)
+  n_row = 5
+  n_col = 5
+  space = np.floor(args.num_gen / (n_row*n_col))
+  subfigsz = 3
+  figsize = (n_col * subfigsz, n_row * subfigsz)
 
   objIdx1 = 0
   objIdx2 = 1
 
-  fig, axArray = plt.subplots(nRow, nCol, figsize=figsize)
+  fig, ax_array = plt.subplots(n_row, n_col, figsize=figsize)
 
-  for i in range(nRow):
-    for j in range(nCol):
-      idx = int((i*nCol + j + 1) * space - 1)
+  for i in range(n_row):
+    for j in range(n_col):
+      idx = int((i*n_col + j + 1) * space - 1)
       print(idx, end=', ')
-      ax = axArray[i][j]
+      ax = ax_array[i][j]
       ax.scatter(-F[idx][:, objIdx1], -F[idx][:, objIdx2], c='b', s=6)
 
       ax.set_title(str(idx), fontsize=fsz)
@@ -208,35 +207,35 @@ elif args.optimizer == 'built-in':
   )
 
   fig.tight_layout()
-  figPath = os.path.join(
-      figFolder, args.problemType + '-optimal_front_all.png'
+  fig_path = os.path.join(
+      figFolder, args.problem_type + '-optimal_front_all.png'
   )
-  fig.savefig(figPath)
+  fig.savefig(fig_path)
 
-  numSnapshot = int(problem.n_obj * (problem.n_obj - 1) / 2)
-  if numSnapshot < 5:
-    nCol = numSnapshot
+  num_snapshot = int(problem.n_obj * (problem.n_obj - 1) / 2)
+  if num_snapshot < 5:
+    n_col = num_snapshot
   else:
-    nCol = 5
-  nRow = int(np.ceil(numSnapshot / nCol))
-  subfigSz = 4
-  figsize = (nCol * subfigSz, nRow * subfigSz)
+    n_col = 5
+  n_row = int(np.ceil(num_snapshot / n_col))
+  subfigsz = 4
+  figsize = (n_col * subfigsz, n_row * subfigsz)
 
-  fig, axArray = plt.subplots(nRow, nCol, figsize=figsize)
+  fig, ax_array = plt.subplots(n_row, n_col, figsize=figsize)
   fsz = 16
   sz = 20
 
   idx = 0
   for i in range(problem.n_obj):
     for j in range(i + 1, problem.n_obj):
-      rowIdx = int(idx / nCol)
-      colIdx = idx % nCol
-      if nRow > 1:
-        ax = axArray[rowIdx, colIdx]
-      elif nCol > 1:
-        ax = axArray[colIdx]
+      rowIdx = int(idx / n_col)
+      colIdx = idx % n_col
+      if n_row > 1:
+        ax = ax_array[rowIdx, colIdx]
+      elif n_col > 1:
+        ax = ax_array[colIdx]
       else:
-        ax = axArray
+        ax = ax_array
       ax.scatter(-res.F[:, i], -res.F[:, j], c='b', s=sz)
       ax.set_xlabel(
           problem.fparams.func.objective_names['o' + str(i + 1)], fontsize=fsz
@@ -246,8 +245,8 @@ elif args.optimizer == 'built-in':
       )
       idx += 1
   fig.tight_layout()
-  figPath = os.path.join(figFolder, args.problemType + '-optimal_front.png')
-  fig.savefig(figPath)
+  fig_path = os.path.join(figFolder, args.problem_type + '-optimal_front.png')
+  fig.savefig(fig_path)
 # endregion
 
 # region: Check with DexcelInterface
@@ -256,13 +255,12 @@ from auv.auv_sim import (
     DexcelInterface_p1, DexcelInterface_p2, DexcelInterface_p3
 )
 
-
 np.set_printoptions(precision=2)
-if problem.problemType == 'p1':
+if problem.problem_type == 'p1':
   ff_obj = DexcelInterface_p1()
-elif problem.problemType == 'p2':
+elif problem.problem_type == 'p2':
   ff_obj = DexcelInterface_p2()
-elif problem.problemType == 'p3':
+elif problem.problem_type == 'p3':
   ff_obj = DexcelInterface_p3()
 
 for i in range(1):
@@ -296,8 +294,8 @@ with open(picklePath, 'wb') as output:
 print(picklePath)
 
 F = -res.F
-fig = plotResultPairwise(
-    n_obj, F, objective_names, axis_bound, nColDefault=5, subfigSz=4, fsz=16,
+fig = plot_result_pairwise(
+    n_obj, F, objective_names, axis_bound, n_col_default=5, subfigsz=4, fsz=16,
     sz=20
 )
 fig.tight_layout()

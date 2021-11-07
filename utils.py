@@ -11,7 +11,7 @@ import imageio
 import pickle
 
 
-#== DATA PROCESSING ==
+# region: DATA PROCESSING
 def normalize(F, F_min=None, F_max=None):
   if F_min is None:
     F_min = np.min(F, axis=0)
@@ -26,12 +26,15 @@ def unnormalize(_F, F_min, F_max):
   return _F * (F_max-F_min) + F_min
 
 
-#== RANDOM SEED ==
-def setSeed(seed_val=0, useTorch=False):
+# endregion
+
+
+# region: RANDOM SEED
+def set_seed(seed_val=0, use_torch=False):
   np.random.seed(seed_val)
   random.seed(seed_val)
 
-  if useTorch:
+  if use_torch:
     import torch
     torch.manual_seed(seed_val)
     torch.cuda.manual_seed(seed_val)
@@ -40,12 +43,15 @@ def setSeed(seed_val=0, useTorch=False):
     torch.backends.cudnn.deterministic = True
 
 
-#== PROBABILITY ==
-def MapAndMean(weightArray, prob):
+# endregion
+
+
+# region: PROBABILITY
+def get_map_mean(weight_array, prob):
   """Gets the MAP and MEAN of the weights.
 
   Args:
-      weightArray (float array):  array of weights
+      weight_array (float array):  array of weights
       prob (float array):         array consisting of weights' probability
 
   Returns:
@@ -53,8 +59,8 @@ def MapAndMean(weightArray, prob):
       w_mean (float array): weighted average of weights
   """
   idx = np.argmax(prob)
-  w_map = weightArray[idx].reshape(-1)
-  w_mean = np.sum(np.diag(prob) @ weightArray, axis=0).reshape(-1)
+  w_map = weight_array[idx].reshape(-1)
+  w_mean = np.sum(np.diag(prob) @ weight_array, axis=0).reshape(-1)
 
   return w_map, w_mean
 
@@ -71,272 +77,146 @@ def entropy(prob):
   return -np.sum(prob * np.log(prob))
 
 
-#== INIT / RESET ==
-def initExp(numWeight=50, dim=3, useL1Norm=False, shrink=.95):
+# endregion
+
+
+# region: INIT / RESET
+def init_experiment(num_weight=50, dim=3, use_one_norm=False, shrink=.95):
   """
   Samples weights from 2-norm or 1-norm ball. Generates designs given the
   weights.
 
   Args:
-      numWeight (int, optional):  the number of weights. Defaults to 50.
+      num_weight (int, optional):  the number of weights. Defaults to 50.
       dim (int, optional):        the dimension of a weight. Defaults to 3.
-      useL1Norm (bool, optional): project weights to 1-norm ball. Defaults to
-          False.
+      use_one_norm (bool, optional): project weights to 1-norm ball. Defaults
+          to False.
       shrink (float, optional):   the ratio to shrink designs' features except
           the optimal design with respect to the optimal weight. Defaults to
           0.95.
 
   Returns:
-      weightArray (float array):      array of weights.
+      weight_array (float array):      array of weights.
       w_opt (float array):            optimal weight.
       idx_opt (int):                  index of the optimal weight.
-      designFeature (float array):    array of designs' features
+      design_feature (float array):    array of designs' features
   """
   #= Weight Space
-  weightArray, idx_opt = setWeightSpace(
-      numWeight=numWeight, dim=dim, useL1Norm=useL1Norm
+  weight_array, idx_opt = set_weight_space(
+      num_weight=num_weight, dim=dim, use_one_norm=use_one_norm
   )
   #= Design Space
-  # numDesign = weightArray.shape[0]
-  designFeature = setDesignSpace(weightArray, idx_opt, shrink=shrink)
+  # num_design = weight_array.shape[0]
+  design_feature = set_design_space(weight_array, idx_opt, shrink=shrink)
 
-  if useL1Norm:  # project to ||w||_1 = 1
-    L1Norm = np.linalg.norm(weightArray, axis=1, ord=1).reshape(-1, 1)
-    weightArray /= L1Norm
-    #designFeature *= L1Norm
-  w_opt = weightArray[idx_opt].copy()
+  if use_one_norm:  # project to ||w||_1 = 1
+    L1Norm = np.linalg.norm(weight_array, axis=1, ord=1).reshape(-1, 1)
+    weight_array /= L1Norm
+    #design_feature *= L1Norm
+  w_opt = weight_array[idx_opt].copy()
 
-  return weightArray, w_opt, idx_opt, designFeature
+  return weight_array, w_opt, idx_opt, design_feature
 
 
-#== WEIGHT SPACE / OPT WEIGHT ==
-def setWeightSpace(numWeight=50, dim=3, useL1Norm=False):
+def set_weight_space(num_weight=50, dim=3, use_one_norm=False):
   """
   Samples weights from 2-norm or 1-norm ball.
 
   Args:
-      numWeight (int, optional): the number of weights. Defaults to 50.
+      num_weight (int, optional): the number of weights. Defaults to 50.
       dim (int, optional): the dimension of a weight. Defaults to 3.
-      useL1Norm (bool, optional): project weights to 1-norm ball. Defaults to
-          False.
+      use_one_norm (bool, optional): project weights to 1-norm ball. Defaults
+          to False.
 
   Returns:
-      weightArray (float array): array of weights.
+      weight_array (float array): array of weights.
       w_opt (float array): optimal weight.
       idx_opt (int): index of the optimal weight.
   """
   # ref: https://www.sciencedirect.com/science/article/pii/S0047259X10001211
 
-  weightArray = np.random.normal(size=(numWeight, dim))
-  weightArray = np.abs(weightArray)
-  weightArray /= np.linalg.norm(weightArray, axis=1, ord=2).reshape(-1, 1)
+  weight_array = np.random.normal(size=(num_weight, dim))
+  weight_array = np.abs(weight_array)
+  weight_array /= np.linalg.norm(weight_array, axis=1, ord=2).reshape(-1, 1)
   # print(
   #     "The shape of the weight array is {:d} x {:d}.".format(
-  #         weightArray.shape[0], weightArray.shape[1]
+  #         weight_array.shape[0], weight_array.shape[1]
   #     )
   # )
 
-  idx_opt = np.random.choice(numWeight)
+  idx_opt = np.random.choice(num_weight)
 
-  return weightArray, idx_opt
+  return weight_array, idx_opt
 
 
-#== DESIGN SPACE ==
-def setDesignSpace(weightArray, idx_opt, shrink=0.95):
+def set_design_space(weight_array, idx_opt, shrink=0.95):
   """
   Generates designs given the weights.
 
   Args:
-      weightArray (float array): array of weights.
+      weight_array (float array): array of weights.
       idx_opt (int): index of the optimal weight.
       shrink (float, optional): the ratio to shrink designs' features except
           the optimal design with respect to the optimal weight. Defaults to
           0.95.
 
   Returns:
-      designFeature (float array): array of designs' features
+      design_feature (float array): array of designs' features
   """
-  numWeight = weightArray.shape[0]
-  designFeature = weightArray.copy()
-  designFeature[np.arange(numWeight) != idx_opt, :] *= shrink
+  num_weight = weight_array.shape[0]
+  design_feature = weight_array.copy()
+  design_feature[np.arange(num_weight) != idx_opt, :] *= shrink
 
-  return designFeature
+  return design_feature
 
 
-def findInfeasibleDesigns(designFeature, activeConstraintSet):
+def get_infeasible_designs(design_feature, active_constraint_set):
   """
   Finds designs that don't meet the active constraints. The constraint is
   expressed as 1{feature < threshold}. If this bool expression is True, this
   design is infeasible.
 
   Args:
-      designFeature (float array): designs' features.
-      activeConstraintSet (int array): active constraints. 1st col.: feature
+      design_feature (float array): designs' features.
+      active_constraint_set (int array): active constraints. 1st col.: feature
           index; 2nd col.: threshold.
 
   Returns:
       np.ndarray: bool, indicates which design is infeasible.
   """
 
-  numDesign = designFeature.shape[0]
-  infeasibleIndicator = np.full(shape=(numDesign,), fill_value=False)
-  if activeConstraintSet is not None:
-    for i in range(numDesign):
+  num_design = design_feature.shape[0]
+  infeasible_indicator = np.full(shape=(num_design,), fill_value=False)
+  if active_constraint_set is not None:
+    for i in range(num_design):
       flag = False
-      for (featureIdx, threshold) in activeConstraintSet:
+      for (feature_idx, threshold) in active_constraint_set:
         upperBound = False
-        if featureIdx[0] == '-':
-          featureIdx = int(featureIdx[1:])
+        if feature_idx[0] == '-':
+          feature_idx = int(feature_idx[1:])
           upperBound = True
-        featureIdx = int(featureIdx)
+        feature_idx = int(feature_idx)
         if upperBound:
-          if designFeature[i, featureIdx] > threshold:
+          if design_feature[i, feature_idx] > threshold:
             flag = True
             break
         else:
-          if designFeature[i, featureIdx] < threshold:
+          if design_feature[i, feature_idx] < threshold:
             flag = True
             break
-      infeasibleIndicator[i] = flag
+      infeasible_indicator[i] = flag
 
-  return infeasibleIndicator
-
-
-#== PLOT ==
-def plotProb(
-    weightArray, prob, w_opt=None, w_proxy=None, title=None, numbering=False
-):
-  """
-  Generates the scatter plot of weights with color specifies the probability.
-  Specifies the optimal and/or proxy weight if provided. If the dimenson of
-  weights is bigger than three, just use the first three dimension to show the
-  distribution.
-
-  Args:
-      weightArray (float array): array of weights
-      prob (float array): array consisting of weights' probability.
-      w_opt (float array, optional): optimal weight. Defaults to None.
-      w_proxy (float array, optional): proxy weight. Defaults to None.
-      title (string, optional): title of the scatter plot. Defaults to None.
-      numbering (bool, optional): show the index of each weight. Defaults to
-          False.
-  """
-  plt.style.use('default')
-
-  fig = plt.figure(figsize=(8, 4))
-  ax = plt.axes(projection='3d')
-
-  xs = weightArray[:, 0]
-  ys = weightArray[:, 1]
-  zs = weightArray[:, 2]
-  cs = prob
-
-  flag = False
-
-  if np.all(w_opt is not None):
-    flag = True
-    ax.scatter3D(
-        w_opt[0], w_opt[1], w_opt[2], marker='s', c='g', s=100, label='Opt'
-    )
-
-  if np.all(w_proxy is not None):
-    flag = True
-    ax.scatter3D(
-        w_proxy[0], w_proxy[1], w_proxy[2], marker='^', c='k', s=100,
-        label='Proxy'
-    )
-
-  # color by prob
-  probMean = np.mean(prob)
-  probStd = np.std(prob)
-  if probStd == 0:
-    probStd = 5e-3
-  minTmp = probMean - 3.*probStd
-  maxTmp = probMean + 3.*probStd
-  sca = ax.scatter3D(
-      xs, ys, zs, c=cs, cmap=cm.coolwarm, vmin=minTmp, vmax=maxTmp, alpha=1,
-      edgecolors='k'
-  )
-
-  if numbering:
-    for i, w in enumerate(weightArray):
-      x, y, z = w
-      ax.text(x, y, z, '{:d}'.format(i))
-
-  if title is not None:
-    fig.suptitle(title)
-
-  ax.set_ylim(1, 0)
-  #ax.invert_yaxis()
-
-  ax.set_xlabel("$w_0$")
-  ax.set_ylabel("$w_1$")
-  ax.set_zlabel("$w_2$")
-
-  if flag:
-    ax.legend()
-
-  fig.colorbar(sca, fraction=.2, pad=.1, shrink=.9)
-  fig.show()
+  return infeasible_indicator
 
 
-def plotEVSIMtx(EVSI_mtx):
-  numDesign = EVSI_mtx.shape[0]
-
-  fig, ax = plt.subplots(1, 1, figsize=(6, 6))
-  im = ax.imshow(EVSI_mtx, cmap=cm.coolwarm)
-  ax.figure.colorbar(im)
-
-  ax.set_yticks(np.arange(numDesign))
-  ax.set_xticks(np.arange(numDesign))
-  ax.set_title("EVSI")
-  ax.set_xlabel("Design Index")
-  ax.set_ylabel("Design Index")
-
-  plt.show()
+# endregion
 
 
-def plotLoss(
-    lossRecord, lw=0.2, fs=14, topClf=20, topReg=10, plotFigure=True,
-    figPath=None
-):
-
-  fig, axes = plt.subplots(1, 3, figsize=(7.5, 2.5))
-
-  for ax in axes:
-    ax.set_xlabel("Iteration", fontsize=fs - 2)
-    ax.set_ylabel("Amplitude", fontsize=fs - 2)
-    ax.set_xlim(left=0, right=lossRecord.shape[0])
-
-  ax = axes[0]
-  ax.plot(lossRecord[:, 0], 'b-', linewidth=lw)
-  ax.set_title("Total Loss", fontsize=fs)
-  ax.set_ylim(bottom=0, top=topClf)
-
-  ax = axes[1]
-  ax.plot(lossRecord[:, 1], 'b-', linewidth=lw)
-  ax.set_title("Classification Loss", fontsize=fs)
-  ax.set_ylim(bottom=0, top=topClf)
-
-  ax = axes[2]
-  ax.plot(lossRecord[:, 2], 'b-', linewidth=lw)
-  ax.set_title("Regularization", fontsize=fs)
-  ax.set_ylim(bottom=0, top=topReg)
-
-  plt.tight_layout()
-  if plotFigure:
-    plt.show()
-    plt.pause(0.1)
-  if figPath is not None:
-    fig.savefig(figPath)
-  plt.close()
-
-
-#== PLOT CONFIDENCE INTERVAL ==
+# region: CONFIDENCE INTERVAL
 def cal_mean_std(array):
-  arrayMean = np.mean(array, axis=1)
-  arrayStd = np.std(array, axis=1)
-  return arrayMean, arrayStd
+  array_mean = np.mean(array, axis=1)
+  array_std = np.std(array, axis=1)
+  return array_mean, array_std
 
 
 def confidenceInterval(data, size, ratio):
@@ -361,23 +241,156 @@ def confidenceInterval(data, size, ratio):
       t = 1.984
     elif ratio == 98:
       t = 2.364
-  dataMean = np.mean(data[:, :], axis=1)
-  dataStd = np.std(data[:, :], axis=1)
-  ERB = t * dataStd / np.sqrt(size)
-  return dataMean, dataMean - ERB, dataMean + ERB
+  data_mean = np.mean(data[:, :], axis=1)
+  data_std = np.std(data[:, :], axis=1)
+  ERB = t * data_std / np.sqrt(size)
+  return data_mean, data_mean - ERB, data_mean + ERB
 
 
-def plotMeanConfInterval(
-    ax, x, stat, color, label, alpha, sz=6, detailLabel=False
+# endregion
+
+
+# region: PLOT
+def plot_prob(
+    weight_array, prob, w_opt=None, w_proxy=None, title=None, numbering=False
 ):
-  labelMean = label + ', Mean'
-  labelCI = label + ', 95% CI'
+  """
+  Generates the scatter plot of weights with color specifies the probability.
+  Specifies the optimal and/or proxy weight if provided. If the dimenson of
+  weights is bigger than three, just use the first three dimension to show the
+  distribution.
 
-  if detailLabel:
-    ax.plot(x, stat[0], '-o', c=color, label=labelMean, ms=sz)
+  Args:
+      weight_array (float array): array of weights
+      prob (float array): array consisting of weights' probability.
+      w_opt (float array, optional): optimal weight. Defaults to None.
+      w_proxy (float array, optional): proxy weight. Defaults to None.
+      title (string, optional): title of the scatter plot. Defaults to None.
+      numbering (bool, optional): show the index of each weight. Defaults to
+          False.
+  """
+  plt.style.use('default')
+
+  fig = plt.figure(figsize=(8, 4))
+  ax = plt.axes(projection='3d')
+
+  xs = weight_array[:, 0]
+  ys = weight_array[:, 1]
+  zs = weight_array[:, 2]
+  cs = prob
+
+  flag = False
+
+  if np.all(w_opt is not None):
+    flag = True
+    ax.scatter3D(
+        w_opt[0], w_opt[1], w_opt[2], marker='s', c='g', s=100, label='Opt'
+    )
+
+  if np.all(w_proxy is not None):
+    flag = True
+    ax.scatter3D(
+        w_proxy[0], w_proxy[1], w_proxy[2], marker='^', c='k', s=100,
+        label='Proxy'
+    )
+
+  # color by prob
+  prob_mean = np.mean(prob)
+  prob_std = np.std(prob)
+  if prob_std == 0:
+    prob_std = 5e-3
+  min_tmp = prob_mean - 3.*prob_std
+  max_tmp = prob_mean + 3.*prob_std
+  sca = ax.scatter3D(
+      xs, ys, zs, c=cs, cmap=cm.coolwarm, vmin=min_tmp, vmax=max_tmp, alpha=1,
+      edgecolors='k'
+  )
+
+  if numbering:
+    for i, w in enumerate(weight_array):
+      x, y, z = w
+      ax.text(x, y, z, '{:d}'.format(i))
+
+  if title is not None:
+    fig.suptitle(title)
+
+  ax.set_ylim(1, 0)
+  #ax.invert_yaxis()
+
+  ax.set_xlabel("$w_0$")
+  ax.set_ylabel("$w_1$")
+  ax.set_zlabel("$w_2$")
+
+  if flag:
+    ax.legend()
+
+  fig.colorbar(sca, fraction=.2, pad=.1, shrink=.9)
+  fig.show()
+
+
+def plot_EVSI_mtx(EVSI_mtx):
+  num_design = EVSI_mtx.shape[0]
+
+  fig, ax = plt.subplots(1, 1, figsize=(6, 6))
+  im = ax.imshow(EVSI_mtx, cmap=cm.coolwarm)
+  ax.figure.colorbar(im)
+
+  ax.set_yticks(np.arange(num_design))
+  ax.set_xticks(np.arange(num_design))
+  ax.set_title("EVSI")
+  ax.set_xlabel("Design Index")
+  ax.set_ylabel("Design Index")
+
+  plt.show()
+
+
+def plot_loss(
+    loss_record, lw=0.2, fs=14, clf_loss_max=20, reg_loss_max=10,
+    plot_figure=True, fig_path=None
+):
+
+  fig, axes = plt.subplots(1, 3, figsize=(7.5, 2.5))
+
+  for ax in axes:
+    ax.set_xlabel("Iteration", fontsize=fs - 2)
+    ax.set_ylabel("Amplitude", fontsize=fs - 2)
+    ax.set_xlim(left=0, right=loss_record.shape[0])
+
+  ax = axes[0]
+  ax.plot(loss_record[:, 0], 'b-', linewidth=lw)
+  ax.set_title("Total Loss", fontsize=fs)
+  ax.set_ylim(bottom=0, top=clf_loss_max)
+
+  ax = axes[1]
+  ax.plot(loss_record[:, 1], 'b-', linewidth=lw)
+  ax.set_title("Classification Loss", fontsize=fs)
+  ax.set_ylim(bottom=0, top=clf_loss_max)
+
+  ax = axes[2]
+  ax.plot(loss_record[:, 2], 'b-', linewidth=lw)
+  ax.set_title("Regularization", fontsize=fs)
+  ax.set_ylim(bottom=0, top=reg_loss_max)
+
+  plt.tight_layout()
+  if plot_figure:
+    plt.show()
+    plt.pause(0.1)
+  if fig_path is not None:
+    fig.savefig(fig_path)
+  plt.close()
+
+
+def plot_mean_conf_interval(
+    ax, x, stat, color, label, alpha, sz=6, detail_label=False
+):
+  label_mean = label + ', Mean'
+  label_CI = label + ', 95% CI'
+
+  if detail_label:
+    ax.plot(x, stat[0], '-o', c=color, label=label_mean, ms=sz)
     ax.fill(
         np.concatenate([x, x[::-1]]), np.concatenate([stat[1], stat[2][::-1]]),
-        alpha=alpha, fc=color, ec='None', label=labelCI
+        alpha=alpha, fc=color, ec='None', label=label_CI
     )
   else:
     ax.plot(x, stat[0], '-o', c=color, label=label, ms=sz)
@@ -387,56 +400,57 @@ def plotMeanConfInterval(
     )
 
 
-#== PLOT GA POPULATION BY OBJECTIVES ==
-def plotResultPairwise(
-    n_obj, F, objective_names, axis_bound, nColDefault=5, subfigSz=4, fsz=16,
-    sz=20, lw=3, activeConstraintSet=None
+# PLOT GA POPULATION BY OBJECTIVES
+def plot_result_pairwise(
+    n_obj, F, objective_names, axis_bound, n_col_default=5, subfigsz=4, fsz=16,
+    sz=20, lw=3, active_constraint_set=None
 ):
 
-  def _getAx(idx, nRow, nCol, axArray):
-    rowIdx = int(idx / nCol)
-    colIdx = idx % nCol
-    if nRow > 1:
-      ax = axArray[rowIdx, colIdx]
-    elif nCol > 1:
-      ax = axArray[colIdx]
+  def _get_ax(idx, n_row, n_col, ax_array):
+    rowIdx = int(idx / n_col)
+    colIdx = idx % n_col
+    if n_row > 1:
+      ax = ax_array[rowIdx, colIdx]
+    elif n_col > 1:
+      ax = ax_array[colIdx]
     else:
-      ax = axArray
+      ax = ax_array
     return ax
 
-  def _numPrevPlots(n_obj, obj_x_idx, obj_y_idx):
+  def _get_num_prev_plots(n_obj, obj_x_idx, obj_y_idx):
     return int((2*n_obj - obj_x_idx - 1) * obj_x_idx / 2
               ) + (obj_y_idx-obj_x_idx)
 
-  numSnapshot = int(n_obj * (n_obj-1) / 2)
-  if numSnapshot < 5:
-    nCol = numSnapshot
+  num_snapshot = int(n_obj * (n_obj-1) / 2)
+  if num_snapshot < 5:
+    n_col = num_snapshot
   else:
-    nCol = nColDefault
-  nRow = int(np.ceil(numSnapshot / nCol))
-  figsize = (nCol * subfigSz, nRow * subfigSz)
-  fig, axArray = plt.subplots(nRow, nCol, figsize=figsize)
-  if activeConstraintSet is not None:
-    for (featureIdx, threshold) in activeConstraintSet:
-      if featureIdx[0] == '-':
-        featureIdx = int(featureIdx[1:])
+    n_col = n_col_default
+  n_row = int(np.ceil(num_snapshot / n_col))
+  figsize = (n_col * subfigsz, n_row * subfigsz)
+  fig, ax_array = plt.subplots(n_row, n_col, figsize=figsize)
+  if active_constraint_set is not None:
+    assert axis_bound is not None, "constraint plotting requires axis bound"
+    for (feature_idx, threshold) in active_constraint_set:
+      if feature_idx[0] == '-':
+        feature_idx = int(feature_idx[1:])
       else:
-        featureIdx = int(featureIdx)
-      vmin, vmax = axis_bound[featureIdx]
+        feature_idx = int(feature_idx)
+      vmin, vmax = axis_bound[feature_idx]
       value = vmin + (vmax-vmin) * threshold
-      for i in range(featureIdx):
-        idx = _numPrevPlots(n_obj, i, featureIdx) - 1
-        ax = _getAx(idx, nRow, nCol, axArray)
+      for i in range(feature_idx):
+        idx = _get_num_prev_plots(n_obj, i, feature_idx) - 1
+        ax = _get_ax(idx, n_row, n_col, ax_array)
         ax.plot(axis_bound[i], [value, value], 'r--', lw=lw)
-      for i in range(featureIdx + 1, n_obj):
-        idx = _numPrevPlots(n_obj, featureIdx, i) - 1
-        ax = _getAx(idx, nRow, nCol, axArray)
+      for i in range(feature_idx + 1, n_obj):
+        idx = _get_num_prev_plots(n_obj, feature_idx, i) - 1
+        ax = _get_ax(idx, n_row, n_col, ax_array)
         ax.plot([value, value], axis_bound[i], 'r--', lw=lw)
 
   idx = 0
   for i in range(n_obj):
     for j in range(i + 1, n_obj):
-      ax = _getAx(idx, nRow, nCol, axArray)
+      ax = _get_ax(idx, n_row, n_col, ax_array)
       ax.scatter(F[:, i], F[:, j], c='b', s=sz, alpha=0.5)
       ax.set_xlabel(objective_names['o' + str(i + 1)], fontsize=fsz)
       ax.set_ylabel(objective_names['o' + str(j + 1)], fontsize=fsz)
@@ -446,7 +460,7 @@ def plotResultPairwise(
   return fig
 
 
-def plotResult3D(
+def plot_result_3D(
     F, objective_names, axis_bound, fsz=16, sz=10, lw=2, azim=210, figsz=6
 ):
   indices = np.argsort(F[:, 0])
@@ -480,32 +494,33 @@ def plotResult3D(
   return fig
 
 
-def generateGIF(
-    dataFolder, destFolder, fn='', checkGeneration=1, maxGen=200, second=20
+def generate_GIF(
+    data_folder, dest_folder, fn='', check_generation=1, max_generation=200,
+    second=20
 ):
 
   # collect figures
-  figProgress = os.path.join(dataFolder, 'figure', 'progress')
+  figProgress = os.path.join(data_folder, 'figure', 'progress')
   fileList = []
-  numFigure = int(maxGen / checkGeneration)
+  numFigure = int(max_generation / check_generation)
   for i in range(numFigure):
-    idx = 1 + checkGeneration*i
+    idx = 1 + check_generation*i
     fileList.append(os.path.join(figProgress, str(idx) + '.png'))
   print(len(fileList))
 
   # generate GIF
-  gifPath = os.path.join(destFolder, fn + 'progress.gif')
-  print(gifPath)
+  gif_path = os.path.join(dest_folder, fn + 'progress.gif')
+  print(gif_path)
   fps = int(numFigure / second)
   images = []
   for filename in fileList:
     images.append(imageio.imread(filename))
 
-  imageio.mimsave(gifPath, images, loop=1, fps=fps)
+  imageio.mimsave(gif_path, images, loop=1, fps=fps)
 
 
-#== PLOT INFERENCE OUTPUT ==
-def getInferenceOutput(agent, nx, ny, obj_list):
+# PLOT INFERENCE OUTPUT
+def get_inference_output(agent, nx, ny, obj_list):
   nx = 101
   ny = 101
 
@@ -528,14 +543,14 @@ def getInferenceOutput(agent, nx, ny, obj_list):
   return X, Y, Z
 
 
-def plotOutput3D(
-    X, Y, Z, obj_list_un, axis_bound, fsz=16, subfigSz=4, cm='coolwarm',
+def plot_output_3D(
+    X, Y, Z, obj_list_un, axis_bound, fsz=16, subfigsz=4, cm='coolwarm',
     alpha=1
 ):
 
-  nRow = 1
-  nCol = len(obj_list_un)
-  figsize = (nCol * subfigSz, nRow * subfigSz)
+  n_row = 1
+  n_col = len(obj_list_un)
+  figsize = (n_col * subfigsz, n_row * subfigsz)
 
   nticks = 3
   xticklabels = np.linspace(axis_bound[0, 0], axis_bound[0, 1], nticks)
@@ -552,7 +567,7 @@ def plotOutput3D(
   fig.set_facecolor('white')
 
   for idx, obj in enumerate(obj_list_un):
-    ax = fig.add_subplot(nRow, nCol, idx + 1, projection='3d')
+    ax = fig.add_subplot(n_row, n_col, idx + 1, projection='3d')
     ax.plot_surface(
         X, Y, Z[:, :, idx], cmap=cm, vmin=vmin, vmax=vmax, alpha=alpha,
         linewidth=0, antialiased=False
@@ -571,7 +586,7 @@ def plotOutput3D(
     ax.set_zticks(zticks)
     ax.set_zticklabels(zticklabels, fontsize=fsz - 4)
 
-    if idx == nCol - 1:
+    if idx == n_col - 1:
       ax.set_xlabel('Range', fontsize=fsz)
       ax.set_ylabel('Speed', fontsize=fsz)
     ax.set_title('Power = {:.0f}'.format(-obj), fontsize=fsz, pad=0)
@@ -580,17 +595,17 @@ def plotOutput3D(
   return fig
 
 
-def plotOutput2D(
-    X, Y, Z, obj_list_un, axis_bound, levelRatios, fsz=22, subfigSz=4,
+def plot_output_2D(
+    X, Y, Z, obj_list_un, axis_bound, level_ratios, fsz=22, subfigsz=4,
     cm='coolwarm', alpha=1, lw=2.5
 ):
 
   F_min = axis_bound[:, 0]
   F_max = axis_bound[:, 1]
 
-  nRow = 1
-  nCol = len(obj_list_un)
-  figsize = (nCol * subfigSz, nRow * subfigSz)
+  n_row = 1
+  n_col = len(obj_list_un)
+  figsize = (n_col * subfigsz, n_row * subfigsz)
 
   ticks = np.array([0., 0.2, 0.5, 1.])
   xticklabels = unnormalize(ticks, F_min[0], F_max[0])
@@ -601,10 +616,10 @@ def plotOutput2D(
 
   vmin = np.floor(np.min(Z) / 0.1) * 0.1
   vmax = np.ceil(np.max(Z) / 0.1) * 0.1
-  levels = levelRatios * (vmax-vmin) + vmin
+  levels = level_ratios * (vmax-vmin) + vmin
 
   fig, axes = plt.subplots(
-      nRow, nCol, figsize=figsize, sharex=True, sharey=True
+      n_row, n_col, figsize=figsize, sharex=True, sharey=True
   )
   for idx, obj in enumerate(obj_list_un):
     ax = axes[idx]

@@ -84,7 +84,7 @@ class RankAndHumanFitnessSurvival(Survival):
     algorithm = kwargs.get('algorithm')
     BETA = algorithm.beta
     BASE_PROB_COEFF = algorithm.base_prob_coeff
-    survivalType = kwargs.get("survivalType")
+    survival_type = kwargs.get("survival_type")
 
     # get the objective space values and objects
     F = pop.get("F").astype(float, copy=False)
@@ -104,7 +104,7 @@ class RankAndHumanFitnessSurvival(Survival):
       # current front sorted by fitness if splitting
       if len(survivors) + len(front) > n_survive:
         n_left = n_survive - len(survivors)
-        if survivalType == 'crowd':
+        if survival_type == 'crowd':
           metric = calc_crowding_distance(F[front, :])
           for j, i in enumerate(front):
             pop[i].set("crowding", metric[j])
@@ -112,13 +112,13 @@ class RankAndHumanFitnessSurvival(Survival):
           I = I[:n_left]
         else:
           metric = pop[front].get('fitness')
-          if survivalType == 'stoc':
+          if survival_type == 'stoc':
             prob_un = np.exp(BETA * metric)
             prob = prob_un / np.sum(prob_un)
             I = np.random.choice(
                 len(front), size=n_left, replace=False, p=prob
             )
-          elif survivalType == 'noisy_stoc':
+          elif survival_type == 'noisy_stoc':
             prob_un = np.exp(BETA * metric)
             prob_fitness = prob_un / np.sum(prob_un)
             prob_basis = 1 / len(front)
@@ -128,7 +128,7 @@ class RankAndHumanFitnessSurvival(Survival):
             I = np.random.choice(
                 len(front), size=n_left, replace=False, p=prob
             )
-          elif survivalType == 'det':
+          elif survival_type == 'det':
             I = randomized_argsort(metric, order='descending')
             I = I[:n_left]
           else:
@@ -158,7 +158,7 @@ class NSGA_INV_SPEC(GeneticAlgorithm):
       display=MultiObjectiveDisplay(),
       warmup=0,
       survival=RankAndHumanFitnessSurvival(),
-      survivalType='stoc',
+      survival_type='stoc',
       tournament_type=None,
       beta=10.,
       base_prob_coeff=0.5,
@@ -179,7 +179,7 @@ class NSGA_INV_SPEC(GeneticAlgorithm):
     else:
       self.tournament_type = tournament_type
     self.warmup = warmup
-    self.survivalType = survivalType
+    self.survival_type = survival_type
 
   def _set_optimum(self, **kwargs):
     if not has_feasible(self.pop):
@@ -219,7 +219,7 @@ class NSGA_INV_SPEC(GeneticAlgorithm):
     """
     self.pop = self.survival.do(
         self.problem, self.pop, n_survive=self.pop_size, algorithm=self,
-        survivalType='crowd'
+        survival_type='crowd'
     )
     for _, ind in enumerate(self.pop):
       ind.set("fitness", 1.)
@@ -240,7 +240,7 @@ class NSGA_INV_SPEC(GeneticAlgorithm):
     if self.n_gen <= self.warmup:
       self.pop = self.survival.do(
           self.problem, self.pop, n_survive=self.pop_size, algorithm=self,
-          survivalType='crowd'
+          survival_type='crowd'
       )
       for _, ind in enumerate(self.pop):
         ind.set("fitness", 1.)
@@ -249,7 +249,7 @@ class NSGA_INV_SPEC(GeneticAlgorithm):
       _ = self.fitness_func.eval(self.pop)
       self.pop = self.survival.do(
           self.problem, self.pop, n_survive=self.pop_size, algorithm=self,
-          survivalType=self.survivalType
+          survival_type=self.survival_type
       )
 
 

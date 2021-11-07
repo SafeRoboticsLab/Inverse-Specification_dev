@@ -10,35 +10,38 @@ import pickle
 import time
 import os
 
-
 os.sys.path.append(os.path.join(os.getcwd(), 'src'))
 
 from auv.problem import AUVsim
-from utils import setSeed, save_obj, findInfeasibleDesigns, getInferenceOutput
-from utils import plotResult3D, plotResultPairwise, plotOutput2D, plotOutput3D
+from utils import (
+    set_seed, save_obj, get_infeasible_designs, get_inference_output
+)
+from utils import (
+    plot_result_3D, plot_result_pairwise, plot_output_2D, plot_output_3D
+)
 
 # region: == ARGS ==
 parser = argparse.ArgumentParser()
 
 # problem parameters
 parser.add_argument(
-    "-p", "--problemType", help="problem type", default='p2', type=str,
+    "-p", "--problem_type", help="problem type", default='p2', type=str,
     choices=['p1', 'p2', 'p3']
 )
 
 # GA parameters
 parser.add_argument(
-    "-rnd", "--randomSeed", help="random seed", default=0, type=int
+    "-rnd", "--random_seed", help="random seed", default=0, type=int
 )
 parser.add_argument(
-    "-psz", "--popSize", help="population size", default=25, type=int
+    "-psz", "--pop_size", help="population size", default=25, type=int
 )
 parser.add_argument(
-    "-ng", "--numGen", help="#generation", default=100, type=int
+    "-ng", "--num_gen", help="#generation", default=100, type=int
 )
-parser.add_argument("-nw", "--numWarmup", help="#warmup", default=1, type=int)
+parser.add_argument("-nw", "--num_warmup", help="#warmup", default=1, type=int)
 parser.add_argument(
-    "-st", "--survivalType", help="survival type", default='stoc', type=str,
+    "-st", "--survival_type", help="survival type", default='stoc', type=str,
     choices=['stoc', 'noisy_stoc', 'det', 'crowd']
 )
 
@@ -49,33 +52,34 @@ parser.add_argument(
 # parser.add_argument("-hw", "--humanWeights",      help="human weights",
 #     default=[0.7, 0.1, 0.2],  nargs="*", type=float)
 parser.add_argument(
-    "-ht", "--humanType", help="human type", default='range_hard', type=str,
+    "-ht", "--human_type", help="human type", default='range_hard', type=str,
     choices=['speed', 'range', 'range_hard']
 )
 
 # human interface
 parser.add_argument(
-    "-ip", "--interactPeriod", help="interaction period", default=25, type=int
+    "-ip", "--interact_period", help="interaction period", default=25, type=int
 )
 parser.add_argument(
-    "-nq", "--numQueriesPer", help="#queries per update", default=1, type=int
+    "-nq", "--num_queries_per_update", help="#queries per update", default=1,
+    type=int
 )
 parser.add_argument(
-    "-mq", "--maxQueries", help="maximal #queries", default=50, type=int
+    "-mq", "--max_queries", help="maximal #queries", default=50, type=int
 )
 
 # NN model
 parser.add_argument(
-    "-mu", "--maxUpdates", help="maximal #updates", default=500, type=int
+    "-mu", "--max_updates", help="maximal #updates", default=500, type=int
 )
 parser.add_argument(
-    "-lr", "--learningRate", help="learning rate", default=1e-3, type=float
+    "-lr", "--learning_rate", help="learning rate", default=1e-3, type=float
 )
 parser.add_argument(
-    "-lrp", "--lrPeriod", help="lr decay period", default=1000, type=int
+    "-lrp", "--lr_period", help="lr decay period", default=1000, type=int
 )
 parser.add_argument(
-    "-bsz", "--batchSize", help="batch size", default=16, type=int
+    "-bsz", "--batch_size", help="batch size", default=16, type=int
 )
 parser.add_argument(
     "-t", "--tradeoff", help="tradeoff", default=1e-2, type=float
@@ -93,24 +97,24 @@ parser.add_argument(
 )
 
 # output
-# parser.add_argument("-cp",  "--checkPeriod",        help="check period",
+# parser.add_argument("-cp",  "--check_period",        help="check period",
 #     default=250,    type=int)
 parser.add_argument(
-    "-cg", "--checkGeneration", help="check generation", default=1, type=int
+    "-cg", "--check_generation", help="check generation", default=1, type=int
 )
 parser.add_argument(
-    "-uts", "--useTimeStr", help="use timestr", action="store_true"
+    "-uts", "--use_timestr", help="use timestr", action="store_true"
 )
 parser.add_argument("-n", "--name", help="extra name", default=None)
 
 args = parser.parse_args()
 print(args)
 _outFolder = os.path.join(
-    'scratch', 'AUV_' + args.problemType,
-    'InvSpec-NN-' + args.humanType + '-' + args.survivalType
+    'scratch', 'AUV_' + args.problem_type,
+    'InvSpec-NN-' + args.human_type + '-' + args.survival_type
 )
 if args.name is None:
-  numQueries = int(np.ceil(float(args.numGen) / args.interactPeriod))
+  numQueries = int(np.ceil(float(args.num_gen) / args.interact_period))
   outFolder = os.path.join(_outFolder, str(numQueries) + 'queries')
 else:
   outFolder = os.path.join(_outFolder, args.name)
@@ -124,24 +128,24 @@ os.makedirs(agentFolder, exist_ok=True)
 
 
 # region: == local functions ==
-def getHumanScores(designFeature, w_opt, activeConstraintSet=None):
-  n_designs = designFeature.shape[0]
-  indicator = findInfeasibleDesigns(designFeature, activeConstraintSet)
-  feasibleIndex = np.arange(n_designs)[np.logical_not(indicator)]
-  feasibleDesigns = designFeature[feasibleIndex]
-  scores = feasibleDesigns @ w_opt
-  return feasibleIndex, scores
+def getHumanScores(design_feature, w_opt, active_constraint_set=None):
+  n_designs = design_feature.shape[0]
+  indicator = get_infeasible_designs(design_feature, active_constraint_set)
+  feasible_index = np.arange(n_designs)[np.logical_not(indicator)]
+  feasible_designs = design_feature[feasible_index]
+  scores = feasible_designs @ w_opt
+  return feasible_index, scores
 
 
 def report(
-    agent, designFeature, w_opt, showRankNumber=5, activeConstraintSet=None
+    agent, design_feature, w_opt, showRankNumber=5, active_constraint_set=None
 ):
 
-  fitness = agent.inference.eval(designFeature)
+  fitness = agent.inference.eval(design_feature)
   hard_order = np.argsort(-fitness)
 
-  feasibleIndex, scores = getHumanScores(
-      designFeature, w_opt, activeConstraintSet=activeConstraintSet
+  feasible_index, scores = getHumanScores(
+      design_feature, w_opt, active_constraint_set=active_constraint_set
   )
   order = np.argsort(-scores)
 
@@ -153,12 +157,12 @@ def report(
   if order.shape[0] > 0:
     print("\nReal Order:")
     showRankNumber = min(order.shape[0], showRankNumber)
-    print(feasibleIndex[order[:showRankNumber]])
+    print(feasible_index[order[:showRankNumber]])
     with np.printoptions(formatter={'float': '{: 2.2f}'.format}):
       print(scores[order[:showRankNumber]])
 
-    score_opt = w_opt @ designFeature[order[0]]
-    score_pred = w_opt @ designFeature[hard_order[0]]
+    score_opt = w_opt @ design_feature[order[0]]
+    score_pred = w_opt @ design_feature[hard_order[0]]
     score_diff = score_opt - score_pred
     print("Score difference: {:.3f}".format(score_diff))
   else:
@@ -168,8 +172,8 @@ def report(
 # endregion
 
 # region: == Define Problem ==
-setSeed(seed_val=args.randomSeed, useTorch=True)
-problem = AUVsim(problemType=args.problemType)
+set_seed(seed_val=args.random_seed, use_torch=True)
+problem = AUVsim(problem_type=args.problem_type)
 n_obj = problem.n_obj
 objective_names = problem.fparams.func.objective_names
 print(problem)
@@ -216,14 +220,14 @@ mutation = MixedVariableMutation(
 )
 
 algorithm = NSGA_INV_SPEC(
-    pop_size=args.popSize, n_offsprings=args.popSize, sampling=sampling,
+    pop_size=args.pop_size, n_offsprings=args.pop_size, sampling=sampling,
     crossover=crossover, mutation=mutation,
     eliminate_duplicates=DefaultDuplicateElimination(epsilon=1e-3),
-    warmup=args.numWarmup, beta=args.beta_m
+    warmup=args.num_warmup, beta=args.beta_m
 )
 
 # termination criterion
-numGenTotal = args.numGen
+numGenTotal = args.num_gen
 termination = get_termination("n_gen", numGenTotal)
 # endregion
 
@@ -231,25 +235,24 @@ termination = get_termination("n_gen", numGenTotal)
 from humansim.human_simulator import HumanSimulator
 from humansim.ranker.pair_ranker import PairRanker
 
-
 print("\n== Human Simulator ==")
-activeConstraintSet = None
-if args.humanType == 'speed':
+active_constraint_set = None
+if args.human_type == 'speed':
   w_opt = np.array([0.1, 0.7, 0.2])
 else:
   w_opt = np.array([0.5, 0.1, 0.4])
-  if args.humanType == 'range_hard':
-    activeConstraintSet = [['0', 0.2], ['1', 0.2]]
+  if args.human_type == 'range_hard':
+    active_constraint_set = [['0', 0.2], ['1', 0.2]]
 print("Human simulator has weights below")
 print(w_opt)
-if activeConstraintSet is not None:
+if active_constraint_set is not None:
   print("Human simulator has active constraints:")
-  print(activeConstraintSet)
+  print(active_constraint_set)
 
 human = HumanSimulator(
     ranker=PairRanker(
-        w_opt, beta=args.beta_h, activeConstraintSet=activeConstraintSet,
-        perfectRank=True
+        w_opt, beta=args.beta_h, active_constraint_set=active_constraint_set,
+        perfect_rank=True
     )
 )
 # endregion
@@ -257,21 +260,19 @@ human = HumanSimulator(
 # region: == Define invSpec ==
 from funct_approx.config import NNConfig
 
-
 print("\n== InvSpec Construction ==")
 CONFIG = NNConfig(
-    SEED=args.randomSeed, MAX_QUERIES=args.maxQueries,
-    MAX_QUERIES_PER=args.numQueriesPer, ARCHITECTURE=args.architecture,
-    ACTIVATION=args.activation, MAX_UPDATES=args.maxUpdates,
-    BATCH_SIZE=args.batchSize, LR=args.learningRate, LR_PERIOD=args.lrPeriod,
-    TRADEOFF=args.tradeoff
+    SEED=args.random_seed, MAX_QUERIES=args.max_queries,
+    MAX_QUERIES_PER=args.num_queries_per_update,
+    ARCHITECTURE=args.architecture, ACTIVATION=args.activation,
+    MAX_UPDATES=args.max_updates, BATCH_SIZE=args.batch_size,
+    LR=args.learning_rate, LR_PERIOD=args.lr_period, TRADEOFF=args.tradeoff
 )
 print(vars(CONFIG), '\n')
 
 from invspec.inv_spec import InvSpec
 from invspec.querySelector.random_selector import RandomQuerySelector
 from invspec.inference.reward_NN import RewardNN
-
 
 dimension = w_opt.shape[0]
 
@@ -288,14 +289,13 @@ print("\n== Optimization starts ...")
 # perform a copy of the algorithm to ensure reproducibility
 import copy
 
-
 obj = copy.deepcopy(algorithm)
 # obj.fitness_func = agent.inference
 
 # let the algorithm know what problem we are intending to solve and provide
 # other attributes
 obj.setup(
-    problem, termination=termination, seed=args.randomSeed, save_history=True
+    problem, termination=termination, seed=args.random_seed, save_history=True
 )
 
 # until the termination criterion has not been met
@@ -308,20 +308,20 @@ while obj.has_next():
   n_acc_fb = agent.get_number_feedback()
 
   #= check performance
-  if obj.n_gen % args.checkGeneration == 0:
+  if obj.n_gen % args.check_generation == 0:
     n_gen = obj.n_gen
     n_nds = len(obj.opt)
     CV = obj.opt.get('CV').min()
     print(f"gen[{n_gen}]: n_nds: {n_nds} CV: {CV}")
     F = -obj.opt.get('F')
     if n_obj == 3:
-      fig = plotResult3D(F, objective_names, axis_bound)
+      fig = plot_result_3D(F, objective_names, axis_bound)
     else:
-      fig = plotResultPairwise(n_obj, F, objective_names, axis_bound)
-    # fig.suptitle(args.survivalType, fontsize=20)
+      fig = plot_result_pairwise(n_obj, F, objective_names, axis_bound)
+    # fig.suptitle(args.survival_type, fontsize=20)
     fig.supxlabel(
         '{}-G{}: {} cumulative queries'.format(
-            args.survivalType, n_gen, n_acc_fb
+            args.survival_type, n_gen, n_acc_fb
         ), fontsize=20
     )
     fig.tight_layout()
@@ -331,16 +331,16 @@ while obj.has_next():
     plt.close()
 
   #= interact with human
-  if args.numWarmup == 0:
-    time2update = ((obj.n_gen == 1) or (obj.n_gen % args.interactPeriod == 0))
+  if args.num_warmup == 0:
+    time2update = ((obj.n_gen == 1) or (obj.n_gen % args.interact_period == 0))
   else:
-    time2update = (obj.n_gen - args.numWarmup) % args.interactPeriod == 0
+    time2update = (obj.n_gen - args.num_warmup) % args.interact_period == 0
   if time2update and (obj.n_gen < numGenTotal):
     print("\nAt generation {}".format(obj.n_gen))
     F = agent.normalize(-obj.opt.get('F'))
     n_acc_fb = agent.get_number_feedback()
 
-    # if obj.n_gen == args.numWarmup and args.numWarmup != 0:
+    # if obj.n_gen == args.num_warmup and args.num_warmup != 0:
     #     n_want = 2
     # else:
     #     n_want = CONFIG.MAX_QUERIES_PER
@@ -359,8 +359,8 @@ while obj.has_next():
       action = np.array([]).reshape(1, 0)
       for idx in indices:
         Ds = F[idx, :]
-        fb = human.getRanking(Ds)
-        if obj.n_gen == args.numWarmup and args.numWarmup != 0:
+        fb = human.get_ranking(Ds)
+        if obj.n_gen == args.num_warmup and args.num_warmup != 0:
           print(Ds, fb)
 
         q_1 = (Ds[0:1, :], action)
@@ -383,8 +383,8 @@ while obj.has_next():
 
       # 3. update fitness function
       print("Learn")
-      lossRecord = agent.learn(
-          CONFIG.MAX_UPDATES, int(args.maxUpdates / 2), initialize=True
+      loss_record = agent.learn(
+          CONFIG.MAX_UPDATES, int(args.max_updates / 2), initialize=True
       )
       obj.fitness_func = agent.inference
       updateTimes += 1
@@ -393,8 +393,8 @@ while obj.has_next():
       indices = np.argsort(F[:, 0])
       F = F[indices]
       save_obj(agent, os.path.join(agentFolder, 'agent' + str(updateTimes)))
-      feasibleIndex, scores = getHumanScores(F, w_opt, activeConstraintSet)
-      acc = len(feasibleIndex) / len(F)
+      feasible_index, scores = getHumanScores(F, w_opt, active_constraint_set)
+      acc = len(feasible_index) / len(F)
       print('Feasible ratio: {:.3f}'.format(acc))
       with np.printoptions(formatter={'float': '{: .3f}'.format}):
         print(F)
@@ -405,7 +405,7 @@ while obj.has_next():
       print("Accumulated {:d} feedback".format(n_acc_fb))
 
     # report(agent, F, w_opt, showRankNumber=10,
-    #     activeConstraintSet=activeConstraintSet)
+    #     active_constraint_set=active_constraint_set)
 
 end_time = time.time()
 print("It took {:.1f} seconds".format(end_time - start_time))
@@ -414,7 +414,7 @@ print("It took {:.1f} seconds".format(end_time - start_time))
 save_obj(agent, os.path.join(outFolder, 'agent'))
 
 res = obj.result()
-if args.useTimeStr:
+if args.use_timestr:
   timestr = time.strftime("%m-%d-%H_%M")
 else:
   timestr = ''
@@ -423,9 +423,9 @@ with open(picklePath, 'wb') as output:
   pickle.dump(res, output, pickle.HIGHEST_PROTOCOL)
 
 F = -res.F
-fig = plotResultPairwise(
+fig = plot_result_pairwise(
     n_obj, F, objective_names, axis_bound,
-    activeConstraintSet=activeConstraintSet
+    active_constraint_set=active_constraint_set
 )
 fig.tight_layout()
 fig.savefig(os.path.join(figFolder, 'objPairwise.png'))
@@ -433,8 +433,8 @@ fig.savefig(os.path.join(figFolder, 'objPairwise.png'))
 indices = np.argsort(F[:, 0])
 F = F[indices]
 _F = agent.inference.normalize(F)
-feasibleIndex, scores = getHumanScores(_F, w_opt, activeConstraintSet)
-acc = len(feasibleIndex) / len(_F)
+feasible_index, scores = getHumanScores(_F, w_opt, active_constraint_set)
+acc = len(feasible_index) / len(_F)
 print()
 print('Feasible ratio: {:.3f}'.format(acc))
 with np.printoptions(formatter={'float': '{: .3f}'.format}):
@@ -445,29 +445,29 @@ with np.printoptions(formatter={'float': '{: .3f}'.format}):
 obj_list_un = np.array([-150, -1])
 obj_list = (obj_list_un
             - axis_bound[2, 0]) / (axis_bound[2, 1] - axis_bound[2, 0])
-levelRatios = np.array([0.25, 0.75])
+level_ratios = np.array([0.25, 0.75])
 
 # plot hyper-parameters
-subfigSz = 4
+subfigsz = 4
 cm = 'coolwarm'
 lw = 2.5
 
 # get output
 nx = 101
 ny = 101
-X, Y, Z = getInferenceOutput(agent, nx, ny, obj_list)
+X, Y, Z = get_inference_output(agent, nx, ny, obj_list)
 
 # 3D-plot
-fig = plotOutput3D(
-    X, Y, Z, obj_list_un, axis_bound, fsz=16, subfigSz=subfigSz, cm=cm
+fig = plot_output_3D(
+    X, Y, Z, obj_list_un, axis_bound, fsz=16, subfigsz=subfigsz, cm=cm
 )
 fig.tight_layout()
-figPath = os.path.join(figFolder, 'NN_op.png')
-fig.savefig(figPath)
+fig_path = os.path.join(figFolder, 'NN_op.png')
+fig.savefig(fig_path)
 
 # 2D-plot
-fig2, axes = plotOutput2D(
-    X, Y, Z, obj_list_un, axis_bound, levelRatios, fsz=18, subfigSz=subfigSz,
+fig2, axes = plot_output_2D(
+    X, Y, Z, obj_list_un, axis_bound, level_ratios, fsz=18, subfigsz=subfigsz,
     cm=cm, lw=lw
 )
 for ax in axes:
@@ -475,6 +475,6 @@ for ax in axes:
   ax.plot([0.2, 0.2], [0, 1], 'r:', lw=lw - 0.5)
   ax.plot([0, 1], [0.2, 0.2], 'r:', lw=lw - 0.5)
 fig2.tight_layout()
-figPath = os.path.join(figFolder, 'NN_op_2D.png')
-fig2.savefig(figPath)
+fig_path = os.path.join(figFolder, 'NN_op_2D.png')
+fig2.savefig(fig_path)
 # endregion

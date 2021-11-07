@@ -7,26 +7,26 @@ import numpy as np
 import os
 import types
 
-
 os.sys.path.append('..')
 from .auv_sim import DexcelInterface_p1, DexcelInterface_p2, DexcelInterface_p3
 from pymoo.core.problem import ElementwiseProblem
 
 
-def build_forward_funct(problemType='p1'):
+def build_forward_funct(problem_type='p1'):
   # types.SimpleNamespace provides a mechanism to instantiate an object that
   # can hold attributes and nothing else. It is, in effect, an empty class
   # with a fancier __init__() and a helpful __repr__().
   fparams = types.SimpleNamespace()
-  if problemType == 'p1':
+  if problem_type == 'p1':
     fparams.func = DexcelInterface_p1()
-  elif problemType == 'p2':
+  elif problem_type == 'p2':
     fparams.func = DexcelInterface_p2()
-  elif problemType == 'p3':
+  elif problem_type == 'p3':
     fparams.func = DexcelInterface_p3()
   else:
     raise ValueError(
-        "Unsupported problem type (problemType)," + "we support p1 and p2 now!"
+        "Unsupported problem type (problem_type),"
+        + "we support p1 and p2 now!"
     )
   fparams.xcount = len(fparams.func.inputs)
 
@@ -100,10 +100,10 @@ def build_forward_funct(problemType='p1'):
 
 class AUVsim(ElementwiseProblem):
 
-  def __init__(self, problemType='p1'):
-    self.problemType = problemType
-    print("Problem type: {}".format(self.problemType))
-    self.fparams = build_forward_funct(problemType=self.problemType)
+  def __init__(self, problem_type='p1'):
+    self.problem_type = problem_type
+    print("Problem type: {}".format(self.problem_type))
+    self.fparams = build_forward_funct(problem_type=self.problem_type)
     super().__init__(
         n_var=self.fparams.xcount, n_obj=self.fparams.numobjs,
         n_constr=self.fparams.numconsts, xl=self.fparams.xl, xu=self.fparams.xu
