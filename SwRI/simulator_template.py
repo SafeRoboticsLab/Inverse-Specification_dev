@@ -20,7 +20,7 @@ x = dict(
     control_Q_angular_velocity=3.3501992857774856,
     control_Q_angles=3.0389318577493087,
     control_R=4.422413267471787,
-    control_requested_lateral_speed=26.019805936722737,
+    control_requested_lateral_speed=17.,
     control_requested_vertical_speed=0,
 )
 y = simulator.sim(x, delete_folder=False)
@@ -28,10 +28,11 @@ print("\nGet the output from the simulator:")
 for key, value in y.items():
   print(key, ":", value)
 
+print()
 problem = SWRIsim(TEMPLATE_FILE, EXEC_FILE)
 x = np.array([
     3.9971661079507594, 3.6711272495701843, 3.3501992857774856,
-    3.0389318577493087, 4.422413267471787, 26.019805936722737
+    3.0389318577493087, 4.422413267471787, 17.
 ])
 y = {}
 problem._evaluate(x, y)

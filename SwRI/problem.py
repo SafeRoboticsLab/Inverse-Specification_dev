@@ -14,7 +14,7 @@ class SWRIsim(ElementwiseProblem):
     xl = np.zeros(6)
     xu = np.array([5., 5., 5., 5., 5., 50.])
 
-    super().__init__(n_var=6, n_obj=21, n_constr=0, xl=xl, xu=xu)
+    super().__init__(n_var=6, n_obj=7, n_constr=0, xl=xl, xu=xu)
 
   def _input_wrapper(self, x):
     """Wraps designs to fit in the format of the simulator input.
@@ -46,10 +46,16 @@ class SWRIsim(ElementwiseProblem):
   def _output_extracter(self, output, get_score=False, **kwargs):
     y = []
     for key, value in output.items():
-      if (
-          key != "Hackathon"
-          and key != "Path_traverse_score_based_on_requirements"
-      ):
+      # if (
+      #     key != "Hackathon"
+      #     and key != "Path_traverse_score_based_on_requirements"
+      # ):
+      if ((key == "Flight_distance") or (key == "Time_to_traverse_path")
+          or (key == "Average_speed_to_traverse_path")
+          or (key == "Maximimum_error_distance_during_flight")
+          or (key == "Time_of_maximum_distance_error")
+          or (key == "Spatial_average_distance_error")
+          or (key == "Maximum_ground_impact_speed")):
         y.append(value)
 
     return np.array(y)
