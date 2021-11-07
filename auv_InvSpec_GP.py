@@ -25,23 +25,25 @@ parser = argparse.ArgumentParser()
 
 # problem parameters
 parser.add_argument(
-    "-p", "--problemType", help="problem type", default='p2', type=str,
+    "-p", "--problem_type", help="problem type", default='p2', type=str,
     choices=['p1', 'p2', 'p3']
 )
 
 # GA parameters
 parser.add_argument(
-    "-rnd", "--randomSeed", help="random seed", default=0, type=int
+    "-rnd", "--random_seed", help="random seed", default=0, type=int
 )
 parser.add_argument(
-    "-psz", "--popSize", help="population size", default=25, type=int
-)
-parser.add_argument("-nw", "--numWarmup", help="#warmup", default=25, type=int)
-parser.add_argument(
-    "-ng", "--numGen", help="#generation", default=100, type=int
+    "-psz", "--pop_size", help="population size", default=25, type=int
 )
 parser.add_argument(
-    "-st", "--survivalType", help="survival type", default='stoc', type=str,
+    "-nw", "--num_warmup", help="#warmup", default=25, type=int
+)
+parser.add_argument(
+    "-ng", "--num_gen", help="#generation", default=100, type=int
+)
+parser.add_argument(
+    "-st", "--survival_type", help="survival type", default='stoc', type=str,
     choices=['stoc', 'noisy_stoc', 'det', 'crowd']
 )
 
@@ -50,7 +52,7 @@ parser.add_argument(
     "-b_h", "--beta_h", help="beta in the simulator", default=10, type=float
 )
 parser.add_argument(
-    "-ht", "--humanType", help="human type", default='range_hard', type=str,
+    "-ht", "--human_type", help="human type", default='range_hard', type=str,
     choices=['speed', 'range', 'range_hard']
 )
 # parser.add_argument("-hw", "--humanWeights",    help="human weights",
@@ -58,17 +60,18 @@ parser.add_argument(
 
 # human interface
 parser.add_argument(
-    "-qst", "--querySelectorType", help="query selector type", default='ig',
+    "-qst", "--query_selector_type", help="query selector type", default='ig',
     type=str, choices=['rand', 'ig']
 )
 parser.add_argument(
-    "-ip", "--interactPeriod", help="interaction period", default=25, type=int
+    "-ip", "--interact_period", help="interaction period", default=25, type=int
 )
 parser.add_argument(
-    "-nq", "--numQueriesPer", help="#queries per update", default=1, type=int
+    "-nq", "--num_queries_per_update", help="#queries per update", default=1,
+    type=int
 )
 parser.add_argument(
-    "-mq", "--maxQueries", help="maximal #queries", default=50, type=int
+    "-mq", "--max_queries", help="maximal #queries", default=50, type=int
 )
 
 # GP model
@@ -76,42 +79,39 @@ parser.add_argument(
     "-b_m", "--beta_m", help="beta in the model", default=10, type=float
 )
 parser.add_argument(
-    "-hl", "--horizontalLength", help="ell in RBF kernel", default=.3,
+    "-hl", "--horizontal_length", help="ell in RBF kernel", default=.3,
     type=float
 )
 parser.add_argument(
-    "-vv", "--verticalVariation", help="sigma_f in RBF kernel", default=1.,
+    "-vv", "--vertical_variation", help="sigma_f in RBF kernel", default=1.,
     type=float
 )
 parser.add_argument(
-    "-nl", "--noiseLevel", help="sigma_n in RBF kernel", default=0.1,
+    "-nl", "--noise_level", help="sigma_n in RBF kernel", default=0.1,
     type=float
 )
 parser.add_argument(
-    "-np", "--noiseProbit", help="sigma in Probit model", default=0.5,
+    "-np", "--noise_probit", help="sigma in Probit model", default=0.5,
     type=float
 )
 
 # output
 parser.add_argument(
-    "-cp", "--checkPeriod", help="check period", default=100, type=int
-)
-parser.add_argument(
     "-cg", "--check_generation", help="check generation", default=1, type=int
 )
 parser.add_argument(
-    "-uts", "--useTimeStr", help="use timestr", action="store_true"
+    "-uts", "--use_timestr", help="use timestr", action="store_true"
 )
 parser.add_argument("-n", "--name", help="extra name", default=None)
 
 args = parser.parse_args()
 print(args)
 _outFolder = os.path.join(
-    'scratch', 'AUV_' + args.problemType,
-    'InvSpec-GP-' + args.humanType + '-' + args.querySelectorType
+    'scratch', 'AUV_' + args.problem_type,
+    'InvSpec-GP-' + args.human_type + '-' + args.query_selector_type
 )
 if args.name is None:
-  numQueries = int(np.ceil(float(args.numGen) / args.interactPeriod))
+  numQueries = int(np.ceil(float(args.num_gen) / args.interact_period))
   outFolder = os.path.join(_outFolder, str(numQueries) + 'queries')
 else:
   outFolder = os.path.join(_outFolder, args.name)
@@ -171,8 +171,8 @@ def report(
 # endregion
 
 # region: == Define Problem ==
-set_seed(seed_val=args.randomSeed, use_torch=True)
-problem = AUVsim(problemType=args.problemType)
+set_seed(seed_val=args.random_seed, use_torch=True)
+problem = AUVsim(problem_type=args.problem_type)
 n_obj = problem.n_obj
 objective_names = problem.fparams.func.objective_names
 print(problem)
@@ -220,14 +220,14 @@ mutation = MixedVariableMutation(
 )
 
 algorithm = NSGA_INV_SPEC(
-    pop_size=args.popSize, n_offsprings=args.popSize, sampling=sampling,
+    pop_size=args.pop_size, n_offsprings=args.pop_size, sampling=sampling,
     crossover=crossover, mutation=mutation,
     eliminate_duplicates=DefaultDuplicateElimination(epsilon=1e-3),
-    warmup=args.numWarmup, beta=args.beta_m
+    warmup=args.num_warmup, beta=args.beta_m
 )
 
 # termination criterion
-numGenTotal = args.numGen
+numGenTotal = args.num_gen
 termination = get_termination("n_gen", numGenTotal)
 # endregion
 
@@ -237,11 +237,11 @@ from humansim.ranker.pair_ranker import PairRanker
 
 print("\n== Human Simulator ==")
 active_constraint_set = None
-if args.humanType == 'speed':
+if args.human_type == 'speed':
   w_opt = np.array([0.1, 0.7, 0.2])
 else:
   w_opt = np.array([0.5, 0.1, 0.4])
-  if args.humanType == 'range_hard':
+  if args.human_type == 'range_hard':
     active_constraint_set = [['0', 0.2], ['1', 0.2]]
 print("Human simulator has weights below")
 print(w_opt)
@@ -262,11 +262,11 @@ from funct_approx.config import GPConfig
 
 print("\n== InvSpec Construction ==")
 CONFIG = GPConfig(
-    SEED=args.randomSeed, MAX_QUERIES=args.maxQueries,
-    MAX_QUERIES_PER=args.numQueriesPer,
-    HORIZONTAL_LENGTH=args.horizontalLength,
-    VERTICAL_VARIATION=args.verticalVariation, NOISE_LEVEL=args.noiseLevel,
-    NOISE_PROBIT=args.noiseProbit
+    SEED=args.random_seed, MAX_QUERIES=args.max_queries,
+    MAX_QUERIES_PER=args.num_queries_per_update,
+    HORIZONTAL_LENGTH=args.horizontal_length,
+    VERTICAL_VARIATION=args.vertical_variation, NOISE_LEVEL=args.noise_level,
+    NOISE_PROBIT=args.noise_probit
 )
 print(vars(CONFIG), '\n')
 
@@ -280,7 +280,7 @@ from invspec.inference.reward_GP import RewardGP
 dimension = w_opt.shape[0]
 initialPoint = np.zeros(dimension)
 
-if args.querySelectorType == 'rand':
+if args.query_selector_type == 'rand':
   agent = InvSpec(
       inference=RewardGP(
           dimension, 0, CONFIG, initialPoint, F_min=F_min, F_max=F_max,
@@ -307,7 +307,7 @@ obj = copy.deepcopy(algorithm)
 # let the algorithm know what problem we are intending to solve and provide
 # other attributes
 obj.setup(
-    problem, termination=termination, seed=args.randomSeed, save_history=True
+    problem, termination=termination, seed=args.random_seed, save_history=True
 )
 
 # until the termination criterion has not been met
@@ -330,10 +330,10 @@ while obj.has_next():
       fig = plot_result_3D(F, objective_names, axis_bound)
     else:
       fig = plot_result_pairwise(n_obj, F, objective_names, axis_bound)
-    # fig.suptitle(args.survivalType, fontsize=20)
+    # fig.suptitle(args.survival_type, fontsize=20)
     fig.supxlabel(
         '{}-G{}: {} cumulative queries'.format(
-            args.survivalType, n_gen, n_acc_fb
+            args.survival_type, n_gen, n_acc_fb
         ), fontsize=20
     )
     fig.tight_layout()
@@ -343,16 +343,16 @@ while obj.has_next():
     plt.close()
 
   #= interact with human
-  if args.numWarmup == 0:
-    time2update = ((obj.n_gen == 1) or (obj.n_gen % args.interactPeriod == 0))
+  if args.num_warmup == 0:
+    time2update = ((obj.n_gen == 1) or (obj.n_gen % args.interact_period == 0))
   else:
-    time2update = (obj.n_gen - args.numWarmup) % args.interactPeriod == 0
+    time2update = (obj.n_gen - args.num_warmup) % args.interact_period == 0
 
   if time2update and (obj.n_gen < numGenTotal):
     print("\nAt generation {}".format(obj.n_gen))
     F = agent.normalize(-obj.opt.get('F'))
 
-    # if obj.n_gen == args.numWarmup and args.numWarmup != 0:
+    # if obj.n_gen == args.num_warmup and args.num_warmup != 0:
     #     n_want = 2
     # else:
     #     n_want = CONFIG.MAX_QUERIES_PER
@@ -372,7 +372,7 @@ while obj.has_next():
       for idx in indices:
         Ds = F[idx, :]
         fb = human.get_ranking(Ds)
-        if obj.n_gen == args.numWarmup and args.numWarmup != 0:
+        if obj.n_gen == args.num_warmup and args.num_warmup != 0:
           print(Ds, fb)
 
         q_1 = (Ds[0:1, :], action)
@@ -428,7 +428,7 @@ print("It took {:.1f} seconds".format(end_time - start_time))
 save_obj(agent, os.path.join(outFolder, 'agent'))
 
 res = obj.result()
-if args.useTimeStr:
+if args.use_timestr:
   timestr = time.strftime("%m-%d-%H_%M")
 else:
   timestr = ''
@@ -478,7 +478,9 @@ fig = plot_output_3D(
     X, Y, Z, obj_list_un, axis_bound, fsz=16, subfigsz=subfigsz, cm=cm
 )
 fig.tight_layout()
-fig_path = os.path.join(figFolder, 'GP_op_' + args.querySelectorType + '.png')
+fig_path = os.path.join(
+    figFolder, 'GP_op_' + args.query_selector_type + '.png'
+)
 fig.savefig(fig_path)
 
 # 2D-plot
@@ -492,7 +494,7 @@ for ax in axes:
   ax.plot([0, 1], [0.2, 0.2], 'r:', lw=lw - 0.5)
 fig2.tight_layout()
 fig_path = os.path.join(
-    figFolder, 'GP_op_2D_' + args.querySelectorType + '.png'
+    figFolder, 'GP_op_2D_' + args.query_selector_type + '.png'
 )
 fig2.savefig(fig_path)
 # endregion

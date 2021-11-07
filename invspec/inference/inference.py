@@ -6,7 +6,6 @@ import numpy as np
 
 from collections import namedtuple
 
-
 Feedback = namedtuple('Feedback', ['q_1', 'q_2', 'f'])
 
 from funct_approx.memory import ReplayMemory
@@ -169,20 +168,20 @@ class Inference(ABC):
   def trans_state_action_tuple2numpy(qs):
     """
     Transforms a sequence of (state, action) pairs into a numpy array of shape
-    (batchsize, length, stateDim+actionDim).
+    (batch_size, length, stateDim+actionDim).
 
     Args:
         qs (tuple): tuple of (state, action) tuples.
 
     Returns:
-        np.ndarray: of shape (batchsize, length, stateDim+actionDim).
+        np.ndarray: of shape (batch_size, length, stateDim+actionDim).
     """
-    batchsize = len(qs)
+    batch_size = len(qs)
     length = qs[0][0].shape[0]
     stateDim = qs[0][0].shape[1]
     actionDim = qs[0][1].shape[1]
 
-    trajectories = np.empty(shape=(batchsize, length, stateDim + actionDim))
+    trajectories = np.empty(shape=(batch_size, length, stateDim + actionDim))
 
     for i, q in enumerate(qs):
       state, action = q

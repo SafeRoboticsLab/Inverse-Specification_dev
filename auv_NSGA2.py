@@ -22,19 +22,19 @@ parser = argparse.ArgumentParser()
 
 # problem parameters
 parser.add_argument(
-    "-p", "--problemType", help="problem type", default='p2', type=str,
+    "-p", "--problem_type", help="problem type", default='p2', type=str,
     choices=['p1', 'p2', 'p3']
 )
 
 # GA parameters
 parser.add_argument(
-    "-rnd", "--randomSeed", help="random seed", default=0, type=int
+    "-rnd", "--random_seed", help="random seed", default=0, type=int
 )
 parser.add_argument(
-    "-psz", "--popSize", help="population size", default=25, type=int
+    "-psz", "--pop_size", help="population size", default=25, type=int
 )
 parser.add_argument(
-    "-ng", "--numGen", help="#generation", default=200, type=int
+    "-ng", "--num_gen", help="#generation", default=200, type=int
 )
 parser.add_argument(
     "-cg", "--check_generation", help="check period", default=25, type=int
@@ -46,14 +46,14 @@ parser.add_argument(
 
 args = parser.parse_args()
 print(args)
-outFolder = os.path.join('scratch', 'AUV_' + args.problemType, 'NSGA2')
+outFolder = os.path.join('scratch', 'AUV_' + args.problem_type, 'NSGA2')
 figFolder = os.path.join(outFolder, 'figure')
 os.makedirs(figFolder, exist_ok=True)
 # endregion
 
 # region: == Define Problem ==
-set_seed(seed_val=args.randomSeed, use_torch=True)
-problem = AUVsim(problemType=args.problemType)
+set_seed(seed_val=args.random_seed, use_torch=True)
+problem = AUVsim(problem_type=args.problem_type)
 n_obj = problem.n_obj
 objective_names = problem.fparams.func.objective_names
 print(problem)
@@ -100,15 +100,15 @@ mutation = MixedVariableMutation(
 )
 
 algorithm = NSGA2(
-    pop_size=args.popSize,
-    n_offsprings=args.popSize,
+    pop_size=args.pop_size,
+    n_offsprings=args.pop_size,
     sampling=sampling,
     crossover=crossover,
     mutation=mutation,
     eliminate_duplicates=True,
 )
 # termination criterion
-termination = get_termination("n_gen", args.numGen)
+termination = get_termination("n_gen", args.num_gen)
 # endregion
 
 # region: == Define Solver ==
@@ -121,7 +121,8 @@ if args.optimizer == 'oo':
   # let the algorithm know what problem we are intending to solve and provide
   # other attributes
   obj.setup(
-      problem, termination=termination, seed=args.randomSeed, save_history=True
+      problem, termination=termination, seed=args.random_seed,
+      save_history=True
   )
 
   # until the termination criterion has not been met
@@ -159,8 +160,8 @@ if args.optimizer == 'oo':
 elif args.optimizer == 'built-in':
   # get results via built-in minimization
   res = minimize(
-      problem, algorithm, termination, seed=args.randomSeed, save_history=True,
-      verbose=False
+      problem, algorithm, termination, seed=args.random_seed,
+      save_history=True, verbose=False
   )
 
   #== Result ==
@@ -176,7 +177,7 @@ elif args.optimizer == 'built-in':
   fsz = 16
   n_row = 5
   n_col = 5
-  space = np.floor(args.numGen / (n_row*n_col))
+  space = np.floor(args.num_gen / (n_row*n_col))
   subfigsz = 3
   figsize = (n_col * subfigsz, n_row * subfigsz)
 
@@ -207,7 +208,7 @@ elif args.optimizer == 'built-in':
 
   fig.tight_layout()
   fig_path = os.path.join(
-      figFolder, args.problemType + '-optimal_front_all.png'
+      figFolder, args.problem_type + '-optimal_front_all.png'
   )
   fig.savefig(fig_path)
 
@@ -244,7 +245,7 @@ elif args.optimizer == 'built-in':
       )
       idx += 1
   fig.tight_layout()
-  fig_path = os.path.join(figFolder, args.problemType + '-optimal_front.png')
+  fig_path = os.path.join(figFolder, args.problem_type + '-optimal_front.png')
   fig.savefig(fig_path)
 # endregion
 
@@ -255,11 +256,11 @@ from auv.auv_sim import (
 )
 
 np.set_printoptions(precision=2)
-if problem.problemType == 'p1':
+if problem.problem_type == 'p1':
   ff_obj = DexcelInterface_p1()
-elif problem.problemType == 'p2':
+elif problem.problem_type == 'p2':
   ff_obj = DexcelInterface_p2()
-elif problem.problemType == 'p3':
+elif problem.problem_type == 'p3':
   ff_obj = DexcelInterface_p3()
 
 for i in range(1):

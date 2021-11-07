@@ -25,23 +25,23 @@ parser = argparse.ArgumentParser()
 
 # problem parameters
 parser.add_argument(
-    "-p", "--problemType", help="problem type", default='p2', type=str,
+    "-p", "--problem_type", help="problem type", default='p2', type=str,
     choices=['p1', 'p2', 'p3']
 )
 
 # GA parameters
 parser.add_argument(
-    "-rnd", "--randomSeed", help="random seed", default=0, type=int
+    "-rnd", "--random_seed", help="random seed", default=0, type=int
 )
 parser.add_argument(
-    "-psz", "--popSize", help="population size", default=25, type=int
+    "-psz", "--pop_size", help="population size", default=25, type=int
 )
 parser.add_argument(
-    "-ng", "--numGen", help="#generation", default=100, type=int
+    "-ng", "--num_gen", help="#generation", default=100, type=int
 )
-parser.add_argument("-nw", "--numWarmup", help="#warmup", default=1, type=int)
+parser.add_argument("-nw", "--num_warmup", help="#warmup", default=1, type=int)
 parser.add_argument(
-    "-st", "--survivalType", help="survival type", default='stoc', type=str,
+    "-st", "--survival_type", help="survival type", default='stoc', type=str,
     choices=['stoc', 'noisy_stoc', 'det', 'crowd']
 )
 
@@ -52,33 +52,34 @@ parser.add_argument(
 # parser.add_argument("-hw", "--humanWeights",      help="human weights",
 #     default=[0.7, 0.1, 0.2],  nargs="*", type=float)
 parser.add_argument(
-    "-ht", "--humanType", help="human type", default='range_hard', type=str,
+    "-ht", "--human_type", help="human type", default='range_hard', type=str,
     choices=['speed', 'range', 'range_hard']
 )
 
 # human interface
 parser.add_argument(
-    "-ip", "--interactPeriod", help="interaction period", default=25, type=int
+    "-ip", "--interact_period", help="interaction period", default=25, type=int
 )
 parser.add_argument(
-    "-nq", "--numQueriesPer", help="#queries per update", default=1, type=int
+    "-nq", "--num_queries_per_update", help="#queries per update", default=1,
+    type=int
 )
 parser.add_argument(
-    "-mq", "--maxQueries", help="maximal #queries", default=50, type=int
+    "-mq", "--max_queries", help="maximal #queries", default=50, type=int
 )
 
 # NN model
 parser.add_argument(
-    "-mu", "--maxUpdates", help="maximal #updates", default=500, type=int
+    "-mu", "--max_updates", help="maximal #updates", default=500, type=int
 )
 parser.add_argument(
-    "-lr", "--learningRate", help="learning rate", default=1e-3, type=float
+    "-lr", "--learning_rate", help="learning rate", default=1e-3, type=float
 )
 parser.add_argument(
-    "-lrp", "--lrPeriod", help="lr decay period", default=1000, type=int
+    "-lrp", "--lr_period", help="lr decay period", default=1000, type=int
 )
 parser.add_argument(
-    "-bsz", "--batchSize", help="batch size", default=16, type=int
+    "-bsz", "--batch_size", help="batch size", default=16, type=int
 )
 parser.add_argument(
     "-t", "--tradeoff", help="tradeoff", default=1e-2, type=float
@@ -96,24 +97,24 @@ parser.add_argument(
 )
 
 # output
-# parser.add_argument("-cp",  "--checkPeriod",        help="check period",
+# parser.add_argument("-cp",  "--check_period",        help="check period",
 #     default=250,    type=int)
 parser.add_argument(
     "-cg", "--check_generation", help="check generation", default=1, type=int
 )
 parser.add_argument(
-    "-uts", "--useTimeStr", help="use timestr", action="store_true"
+    "-uts", "--use_timestr", help="use timestr", action="store_true"
 )
 parser.add_argument("-n", "--name", help="extra name", default=None)
 
 args = parser.parse_args()
 print(args)
 _outFolder = os.path.join(
-    'scratch', 'AUV_' + args.problemType,
-    'InvSpec-NN-' + args.humanType + '-' + args.survivalType
+    'scratch', 'AUV_' + args.problem_type,
+    'InvSpec-NN-' + args.human_type + '-' + args.survival_type
 )
 if args.name is None:
-  numQueries = int(np.ceil(float(args.numGen) / args.interactPeriod))
+  numQueries = int(np.ceil(float(args.num_gen) / args.interact_period))
   outFolder = os.path.join(_outFolder, str(numQueries) + 'queries')
 else:
   outFolder = os.path.join(_outFolder, args.name)
@@ -171,8 +172,8 @@ def report(
 # endregion
 
 # region: == Define Problem ==
-set_seed(seed_val=args.randomSeed, use_torch=True)
-problem = AUVsim(problemType=args.problemType)
+set_seed(seed_val=args.random_seed, use_torch=True)
+problem = AUVsim(problem_type=args.problem_type)
 n_obj = problem.n_obj
 objective_names = problem.fparams.func.objective_names
 print(problem)
@@ -219,14 +220,14 @@ mutation = MixedVariableMutation(
 )
 
 algorithm = NSGA_INV_SPEC(
-    pop_size=args.popSize, n_offsprings=args.popSize, sampling=sampling,
+    pop_size=args.pop_size, n_offsprings=args.pop_size, sampling=sampling,
     crossover=crossover, mutation=mutation,
     eliminate_duplicates=DefaultDuplicateElimination(epsilon=1e-3),
-    warmup=args.numWarmup, beta=args.beta_m
+    warmup=args.num_warmup, beta=args.beta_m
 )
 
 # termination criterion
-numGenTotal = args.numGen
+numGenTotal = args.num_gen
 termination = get_termination("n_gen", numGenTotal)
 # endregion
 
@@ -236,11 +237,11 @@ from humansim.ranker.pair_ranker import PairRanker
 
 print("\n== Human Simulator ==")
 active_constraint_set = None
-if args.humanType == 'speed':
+if args.human_type == 'speed':
   w_opt = np.array([0.1, 0.7, 0.2])
 else:
   w_opt = np.array([0.5, 0.1, 0.4])
-  if args.humanType == 'range_hard':
+  if args.human_type == 'range_hard':
     active_constraint_set = [['0', 0.2], ['1', 0.2]]
 print("Human simulator has weights below")
 print(w_opt)
@@ -261,11 +262,11 @@ from funct_approx.config import NNConfig
 
 print("\n== InvSpec Construction ==")
 CONFIG = NNConfig(
-    SEED=args.randomSeed, MAX_QUERIES=args.maxQueries,
-    MAX_QUERIES_PER=args.numQueriesPer, ARCHITECTURE=args.architecture,
-    ACTIVATION=args.activation, MAX_UPDATES=args.maxUpdates,
-    BATCH_SIZE=args.batchSize, LR=args.learningRate, LR_PERIOD=args.lrPeriod,
-    TRADEOFF=args.tradeoff
+    SEED=args.random_seed, MAX_QUERIES=args.max_queries,
+    MAX_QUERIES_PER=args.num_queries_per_update,
+    ARCHITECTURE=args.architecture, ACTIVATION=args.activation,
+    MAX_UPDATES=args.max_updates, BATCH_SIZE=args.batch_size,
+    LR=args.learning_rate, LR_PERIOD=args.lr_period, TRADEOFF=args.tradeoff
 )
 print(vars(CONFIG), '\n')
 
@@ -294,7 +295,7 @@ obj = copy.deepcopy(algorithm)
 # let the algorithm know what problem we are intending to solve and provide
 # other attributes
 obj.setup(
-    problem, termination=termination, seed=args.randomSeed, save_history=True
+    problem, termination=termination, seed=args.random_seed, save_history=True
 )
 
 # until the termination criterion has not been met
@@ -317,10 +318,10 @@ while obj.has_next():
       fig = plot_result_3D(F, objective_names, axis_bound)
     else:
       fig = plot_result_pairwise(n_obj, F, objective_names, axis_bound)
-    # fig.suptitle(args.survivalType, fontsize=20)
+    # fig.suptitle(args.survival_type, fontsize=20)
     fig.supxlabel(
         '{}-G{}: {} cumulative queries'.format(
-            args.survivalType, n_gen, n_acc_fb
+            args.survival_type, n_gen, n_acc_fb
         ), fontsize=20
     )
     fig.tight_layout()
@@ -330,16 +331,16 @@ while obj.has_next():
     plt.close()
 
   #= interact with human
-  if args.numWarmup == 0:
-    time2update = ((obj.n_gen == 1) or (obj.n_gen % args.interactPeriod == 0))
+  if args.num_warmup == 0:
+    time2update = ((obj.n_gen == 1) or (obj.n_gen % args.interact_period == 0))
   else:
-    time2update = (obj.n_gen - args.numWarmup) % args.interactPeriod == 0
+    time2update = (obj.n_gen - args.num_warmup) % args.interact_period == 0
   if time2update and (obj.n_gen < numGenTotal):
     print("\nAt generation {}".format(obj.n_gen))
     F = agent.normalize(-obj.opt.get('F'))
     n_acc_fb = agent.get_number_feedback()
 
-    # if obj.n_gen == args.numWarmup and args.numWarmup != 0:
+    # if obj.n_gen == args.num_warmup and args.num_warmup != 0:
     #     n_want = 2
     # else:
     #     n_want = CONFIG.MAX_QUERIES_PER
@@ -359,7 +360,7 @@ while obj.has_next():
       for idx in indices:
         Ds = F[idx, :]
         fb = human.get_ranking(Ds)
-        if obj.n_gen == args.numWarmup and args.numWarmup != 0:
+        if obj.n_gen == args.num_warmup and args.num_warmup != 0:
           print(Ds, fb)
 
         q_1 = (Ds[0:1, :], action)
@@ -383,7 +384,7 @@ while obj.has_next():
       # 3. update fitness function
       print("Learn")
       loss_record = agent.learn(
-          CONFIG.MAX_UPDATES, int(args.maxUpdates / 2), initialize=True
+          CONFIG.MAX_UPDATES, int(args.max_updates / 2), initialize=True
       )
       obj.fitness_func = agent.inference
       updateTimes += 1
@@ -413,7 +414,7 @@ print("It took {:.1f} seconds".format(end_time - start_time))
 save_obj(agent, os.path.join(outFolder, 'agent'))
 
 res = obj.result()
-if args.useTimeStr:
+if args.use_timestr:
   timestr = time.strftime("%m-%d-%H_%M")
 else:
   timestr = ''
