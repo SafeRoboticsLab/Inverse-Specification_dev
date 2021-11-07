@@ -454,8 +454,9 @@ def plot_result_pairwise(
       ax.scatter(F[:, i], F[:, j], c='b', s=sz, alpha=0.5)
       ax.set_xlabel(objective_names['o' + str(i + 1)], fontsize=fsz)
       ax.set_ylabel(objective_names['o' + str(j + 1)], fontsize=fsz)
-      ax.set_xlim(axis_bound[i, 0], axis_bound[i, 1])
-      ax.set_ylim(axis_bound[j, 0], axis_bound[j, 1])
+      if axis_bound is not None:
+        ax.set_xlim(axis_bound[i, 0], axis_bound[i, 1])
+        ax.set_ylim(axis_bound[j, 0], axis_bound[j, 1])
       idx += 1
   return fig
 
