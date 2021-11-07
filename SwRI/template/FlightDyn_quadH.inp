@@ -1,3 +1,4 @@
+! need to specify the propeller path
 &aircraft_data
    aircraft%cname          = 'UAV'      ! M  name of aircraft
    aircraft%ctype          = 'SymCPS UAV Design' ! M  type of aircraft
@@ -36,7 +37,7 @@
 !   Propeller(1 uses components named Front_Prop_R, Front_Motor_R, Front_ESC_R
    propeller(1)%cname   = 'apc_propellers_4_75x4_75EP' 
    propeller(1)%ctype   = 'MR'
-   propeller(1)%prop_fname   = '../../propeller/PER3_475x475E.dat' 
+   propeller(1)%prop_fname   = '/Users/kaichieh/Desktop/SDCPS/SwRI/propeller/PER3_475x475E.dat' 
    propeller(1)%x   = 340.32000000000005
    propeller(1)%y   = -340.63999999999993
    propeller(1)%z   = -35.56166666666668
@@ -60,7 +61,7 @@
 !   Propeller(2 uses components named Rear_Prop_L, Rear_Motor_L, Rear_ESC_L
    propeller(2)%cname   = 'apc_propellers_4_75x4_75EP' 
    propeller(2)%ctype   = 'MR'
-   propeller(2)%prop_fname   = '../../propeller/PER3_475x475E.dat' 
+   propeller(2)%prop_fname   = '/Users/kaichieh/Desktop/SDCPS/SwRI/propeller/PER3_475x475E.dat' 
    propeller(2)%x   = -340.31999999999994
    propeller(2)%y   = 340.63999999999993
    propeller(2)%z   = -35.561666666666696
@@ -84,7 +85,7 @@
 !   Propeller(3 uses components named Front_Prop_L, Front_Motor_L, Front_ESC_L
    propeller(3)%cname   = 'apc_propellers_4_75x4_75E' 
    propeller(3)%ctype   = 'MR'
-   propeller(3)%prop_fname   = '../../propeller/PER3_475x475E.dat' 
+   propeller(3)%prop_fname   = '/Users/kaichieh/Desktop/SDCPS/SwRI/propeller/PER3_475x475E.dat' 
    propeller(3)%x   = 340.32000000000005
    propeller(3)%y   = 340.63999999999993
    propeller(3)%z   = -35.561666666666675
@@ -108,7 +109,7 @@
 !   Propeller(4 uses components named Rear_Prop_R, Rear_Motor_R, Rear_ESC_R
    propeller(4)%cname   = 'apc_propellers_4_75x4_75E' 
    propeller(4)%ctype   = 'MR'
-   propeller(4)%prop_fname   = '../../propeller/PER3_475x475E.dat' 
+   propeller(4)%prop_fname   = '/Users/kaichieh/Desktop/SDCPS/SwRI/propeller/PER3_475x475E.dat' 
    propeller(4)%x   = -340.32
    propeller(4)%y   = -340.63999999999993
    propeller(4)%z   = -35.56166666666668

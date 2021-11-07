@@ -74,7 +74,7 @@ class SWRIFlightDynamics():
     self.cwd = os.getcwd()
     self.run_number = 0
 
-  def sim(self, x, delete_folder=False, **kwargs):
+  def sim(self, x, delete_folder=True, **kwargs):
     # implementation of evaluation method in DesignSpace class expects an
     # error if variables are arrays to iterate over values of array - so
     # raise type error if we get arrays in the input dictionary (fortran

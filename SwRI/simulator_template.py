@@ -3,10 +3,11 @@ from flight_dynamics import SWRIFlightDynamics
 
 # template_file: the path to the architecture of the aircraft
 # exec_file: the path to the flight dynamics model
+head_dir = os.path.dirname(os.path.realpath(__file__))
 sim_dict = {
     # 'template_file': 'FlightDyn_7By3.inp',
-    'template_file': os.path.join('template', 'FlightDyn_quadH.inp'),
-    'exec_file': os.path.join("new_fdm")
+    'template_file': os.path.join(head_dir, 'template', 'FlightDyn_quadH.inp'),
+    'exec_file': os.path.join(head_dir, "new_fdm")
 }
 
 simulator = SWRIFlightDynamics(**sim_dict)
@@ -23,7 +24,7 @@ x = dict(
     control_requested_lateral_speed=26.019805936722737,
     control_requested_vertical_speed=0,
 )
-y = simulator.sim(x)
+y = simulator.sim(x, delete_folder=False)
 print("\nGet the output from the simulator:")
 for key, value in y.items():
   print(key, ":", value)
