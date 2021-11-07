@@ -10,12 +10,15 @@ import pickle
 import time
 import os
 
-
 os.sys.path.append(os.path.join(os.getcwd(), 'src'))
 
 from auv.problem import AUVsim
-from utils import setSeed, save_obj, findInfeasibleDesigns, getInferenceOutput
-from utils import plotResult3D, plotResultPairwise, plotOutput2D, plotOutput3D
+from utils import (
+    set_seed, save_obj, get_infeasible_designs, get_inference_output
+)
+from utils import (
+    plot_result_3D, plot_result_pairwise, plot_output_2D, plot_output_3D
+)
 
 # region: == ARGS ==
 parser = argparse.ArgumentParser()
@@ -96,7 +99,7 @@ parser.add_argument(
 # parser.add_argument("-cp",  "--checkPeriod",        help="check period",
 #     default=250,    type=int)
 parser.add_argument(
-    "-cg", "--checkGeneration", help="check generation", default=1, type=int
+    "-cg", "--check_generation", help="check generation", default=1, type=int
 )
 parser.add_argument(
     "-uts", "--useTimeStr", help="use timestr", action="store_true"
@@ -124,24 +127,24 @@ os.makedirs(agentFolder, exist_ok=True)
 
 
 # region: == local functions ==
-def getHumanScores(designFeature, w_opt, activeConstraintSet=None):
-  n_designs = designFeature.shape[0]
-  indicator = findInfeasibleDesigns(designFeature, activeConstraintSet)
-  feasibleIndex = np.arange(n_designs)[np.logical_not(indicator)]
-  feasibleDesigns = designFeature[feasibleIndex]
-  scores = feasibleDesigns @ w_opt
-  return feasibleIndex, scores
+def getHumanScores(design_feature, w_opt, active_constraint_set=None):
+  n_designs = design_feature.shape[0]
+  indicator = get_infeasible_designs(design_feature, active_constraint_set)
+  feasible_index = np.arange(n_designs)[np.logical_not(indicator)]
+  feasible_designs = design_feature[feasible_index]
+  scores = feasible_designs @ w_opt
+  return feasible_index, scores
 
 
 def report(
-    agent, designFeature, w_opt, showRankNumber=5, activeConstraintSet=None
+    agent, design_feature, w_opt, showRankNumber=5, active_constraint_set=None
 ):
 
-  fitness = agent.inference.eval(designFeature)
+  fitness = agent.inference.eval(design_feature)
   hard_order = np.argsort(-fitness)
 
-  feasibleIndex, scores = getHumanScores(
-      designFeature, w_opt, activeConstraintSet=activeConstraintSet
+  feasible_index, scores = getHumanScores(
+      design_feature, w_opt, active_constraint_set=active_constraint_set
   )
   order = np.argsort(-scores)
 
@@ -153,12 +156,12 @@ def report(
   if order.shape[0] > 0:
     print("\nReal Order:")
     showRankNumber = min(order.shape[0], showRankNumber)
-    print(feasibleIndex[order[:showRankNumber]])
+    print(feasible_index[order[:showRankNumber]])
     with np.printoptions(formatter={'float': '{: 2.2f}'.format}):
       print(scores[order[:showRankNumber]])
 
-    score_opt = w_opt @ designFeature[order[0]]
-    score_pred = w_opt @ designFeature[hard_order[0]]
+    score_opt = w_opt @ design_feature[order[0]]
+    score_pred = w_opt @ design_feature[hard_order[0]]
     score_diff = score_opt - score_pred
     print("Score difference: {:.3f}".format(score_diff))
   else:
@@ -168,7 +171,7 @@ def report(
 # endregion
 
 # region: == Define Problem ==
-setSeed(seed_val=args.randomSeed, useTorch=True)
+set_seed(seed_val=args.randomSeed, use_torch=True)
 problem = AUVsim(problemType=args.problemType)
 n_obj = problem.n_obj
 objective_names = problem.fparams.func.objective_names
@@ -231,32 +234,30 @@ termination = get_termination("n_gen", numGenTotal)
 from humansim.human_simulator import HumanSimulator
 from humansim.ranker.pair_ranker import PairRanker
 
-
 print("\n== Human Simulator ==")
-activeConstraintSet = None
+active_constraint_set = None
 if args.humanType == 'speed':
   w_opt = np.array([0.1, 0.7, 0.2])
 else:
   w_opt = np.array([0.5, 0.1, 0.4])
   if args.humanType == 'range_hard':
-    activeConstraintSet = [['0', 0.2], ['1', 0.2]]
+    active_constraint_set = [['0', 0.2], ['1', 0.2]]
 print("Human simulator has weights below")
 print(w_opt)
-if activeConstraintSet is not None:
+if active_constraint_set is not None:
   print("Human simulator has active constraints:")
-  print(activeConstraintSet)
+  print(active_constraint_set)
 
 human = HumanSimulator(
     ranker=PairRanker(
-        w_opt, beta=args.beta_h, activeConstraintSet=activeConstraintSet,
-        perfectRank=True
+        w_opt, beta=args.beta_h, active_constraint_set=active_constraint_set,
+        perfect_rank=True
     )
 )
 # endregion
 
 # region: == Define invSpec ==
 from funct_approx.config import NNConfig
-
 
 print("\n== InvSpec Construction ==")
 CONFIG = NNConfig(
@@ -272,7 +273,6 @@ from invspec.inv_spec import InvSpec
 from invspec.querySelector.random_selector import RandomQuerySelector
 from invspec.inference.reward_NN import RewardNN
 
-
 dimension = w_opt.shape[0]
 
 agent = InvSpec(
@@ -287,7 +287,6 @@ agent = InvSpec(
 print("\n== Optimization starts ...")
 # perform a copy of the algorithm to ensure reproducibility
 import copy
-
 
 obj = copy.deepcopy(algorithm)
 # obj.fitness_func = agent.inference
@@ -308,16 +307,16 @@ while obj.has_next():
   n_acc_fb = agent.get_number_feedback()
 
   #= check performance
-  if obj.n_gen % args.checkGeneration == 0:
+  if obj.n_gen % args.check_generation == 0:
     n_gen = obj.n_gen
     n_nds = len(obj.opt)
     CV = obj.opt.get('CV').min()
     print(f"gen[{n_gen}]: n_nds: {n_nds} CV: {CV}")
     F = -obj.opt.get('F')
     if n_obj == 3:
-      fig = plotResult3D(F, objective_names, axis_bound)
+      fig = plot_result_3D(F, objective_names, axis_bound)
     else:
-      fig = plotResultPairwise(n_obj, F, objective_names, axis_bound)
+      fig = plot_result_pairwise(n_obj, F, objective_names, axis_bound)
     # fig.suptitle(args.survivalType, fontsize=20)
     fig.supxlabel(
         '{}-G{}: {} cumulative queries'.format(
@@ -359,7 +358,7 @@ while obj.has_next():
       action = np.array([]).reshape(1, 0)
       for idx in indices:
         Ds = F[idx, :]
-        fb = human.getRanking(Ds)
+        fb = human.get_ranking(Ds)
         if obj.n_gen == args.numWarmup and args.numWarmup != 0:
           print(Ds, fb)
 
@@ -383,7 +382,7 @@ while obj.has_next():
 
       # 3. update fitness function
       print("Learn")
-      lossRecord = agent.learn(
+      loss_record = agent.learn(
           CONFIG.MAX_UPDATES, int(args.maxUpdates / 2), initialize=True
       )
       obj.fitness_func = agent.inference
@@ -393,8 +392,8 @@ while obj.has_next():
       indices = np.argsort(F[:, 0])
       F = F[indices]
       save_obj(agent, os.path.join(agentFolder, 'agent' + str(updateTimes)))
-      feasibleIndex, scores = getHumanScores(F, w_opt, activeConstraintSet)
-      acc = len(feasibleIndex) / len(F)
+      feasible_index, scores = getHumanScores(F, w_opt, active_constraint_set)
+      acc = len(feasible_index) / len(F)
       print('Feasible ratio: {:.3f}'.format(acc))
       with np.printoptions(formatter={'float': '{: .3f}'.format}):
         print(F)
@@ -405,7 +404,7 @@ while obj.has_next():
       print("Accumulated {:d} feedback".format(n_acc_fb))
 
     # report(agent, F, w_opt, showRankNumber=10,
-    #     activeConstraintSet=activeConstraintSet)
+    #     active_constraint_set=active_constraint_set)
 
 end_time = time.time()
 print("It took {:.1f} seconds".format(end_time - start_time))
@@ -423,9 +422,9 @@ with open(picklePath, 'wb') as output:
   pickle.dump(res, output, pickle.HIGHEST_PROTOCOL)
 
 F = -res.F
-fig = plotResultPairwise(
+fig = plot_result_pairwise(
     n_obj, F, objective_names, axis_bound,
-    activeConstraintSet=activeConstraintSet
+    active_constraint_set=active_constraint_set
 )
 fig.tight_layout()
 fig.savefig(os.path.join(figFolder, 'objPairwise.png'))
@@ -433,8 +432,8 @@ fig.savefig(os.path.join(figFolder, 'objPairwise.png'))
 indices = np.argsort(F[:, 0])
 F = F[indices]
 _F = agent.inference.normalize(F)
-feasibleIndex, scores = getHumanScores(_F, w_opt, activeConstraintSet)
-acc = len(feasibleIndex) / len(_F)
+feasible_index, scores = getHumanScores(_F, w_opt, active_constraint_set)
+acc = len(feasible_index) / len(_F)
 print()
 print('Feasible ratio: {:.3f}'.format(acc))
 with np.printoptions(formatter={'float': '{: .3f}'.format}):
@@ -445,29 +444,29 @@ with np.printoptions(formatter={'float': '{: .3f}'.format}):
 obj_list_un = np.array([-150, -1])
 obj_list = (obj_list_un
             - axis_bound[2, 0]) / (axis_bound[2, 1] - axis_bound[2, 0])
-levelRatios = np.array([0.25, 0.75])
+level_ratios = np.array([0.25, 0.75])
 
 # plot hyper-parameters
-subfigSz = 4
+subfigsz = 4
 cm = 'coolwarm'
 lw = 2.5
 
 # get output
 nx = 101
 ny = 101
-X, Y, Z = getInferenceOutput(agent, nx, ny, obj_list)
+X, Y, Z = get_inference_output(agent, nx, ny, obj_list)
 
 # 3D-plot
-fig = plotOutput3D(
-    X, Y, Z, obj_list_un, axis_bound, fsz=16, subfigSz=subfigSz, cm=cm
+fig = plot_output_3D(
+    X, Y, Z, obj_list_un, axis_bound, fsz=16, subfigsz=subfigsz, cm=cm
 )
 fig.tight_layout()
-figPath = os.path.join(figFolder, 'NN_op.png')
-fig.savefig(figPath)
+fig_path = os.path.join(figFolder, 'NN_op.png')
+fig.savefig(fig_path)
 
 # 2D-plot
-fig2, axes = plotOutput2D(
-    X, Y, Z, obj_list_un, axis_bound, levelRatios, fsz=18, subfigSz=subfigSz,
+fig2, axes = plot_output_2D(
+    X, Y, Z, obj_list_un, axis_bound, level_ratios, fsz=18, subfigsz=subfigsz,
     cm=cm, lw=lw
 )
 for ax in axes:
@@ -475,6 +474,6 @@ for ax in axes:
   ax.plot([0.2, 0.2], [0, 1], 'r:', lw=lw - 0.5)
   ax.plot([0, 1], [0.2, 0.2], 'r:', lw=lw - 0.5)
 fig2.tight_layout()
-figPath = os.path.join(figFolder, 'NN_op_2D.png')
-fig2.savefig(figPath)
+fig_path = os.path.join(figFolder, 'NN_op_2D.png')
+fig2.savefig(fig_path)
 # endregion

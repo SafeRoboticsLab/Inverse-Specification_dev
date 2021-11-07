@@ -9,7 +9,7 @@ class Ranker(ABC):
   def __init__(self):
     super().__init__()
 
-  def getRanking(self, query, **kwargs):
+  def get_ranking(self, query, **kwargs):
     """
     Gets the preference of designs or returns "cannot distinguish".
 
@@ -17,8 +17,8 @@ class Ranker(ABC):
         query (np.array, (#designs x #features)): designs represented by
             their features (objectives defined in `problem`)
     """
-    return self._getRanking(query, **kwargs)
+    return self._get_ranking(query, **kwargs)
 
   @abstractmethod
-  def _getRanking(self, query, **kwargs):
+  def _get_ranking(self, query, **kwargs):
     raise NotImplementedError

@@ -152,7 +152,7 @@ class RewardNN(Inference):
       self.initialize()
 
     #== Train ==
-    lossRecord = np.empty(shape=(numIter, 3))
+    loss_record = np.empty(shape=(numIter, 3))
     for it in range(numIter):
       self.reward.train()
       lr_cur = self.optimizer.state_dict()['param_groups'][0]['lr']
@@ -214,7 +214,7 @@ class RewardNN(Inference):
         )
         print("with learning rate = {:.2e}".format(lr_cur))
 
-      lossRecord[it, 0] = loss_value
-      lossRecord[it, 1] = clf_loss_value
-      lossRecord[it, 2] = reg_value
-    return lossRecord
+      loss_record[it, 0] = loss_value
+      loss_record[it, 1] = clf_loss_value
+      loss_record[it, 2] = reg_value
+    return loss_record
