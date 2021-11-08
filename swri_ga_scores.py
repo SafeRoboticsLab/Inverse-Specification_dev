@@ -1,6 +1,7 @@
 # Please contact the author(s) of this library if you have any questions.
 # Authors: Kai-Chieh Hsu ( kaichieh@princeton.edu )
-# example: python3 swri_ga.py -cg 1 -psz 10 -ng 100
+# example: python3 swri_ga.py -p p1 -ng 200 -psz 100
+# example: python3 swri_ga.py -cg 1
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -13,8 +14,8 @@ import os
 
 os.sys.path.append(os.path.join(os.getcwd(), 'src'))
 
-from SwRI.problem import SWRISimulator, SWRISimulatorParallel
-from utils import set_seed, plot_result_3D, plot_result_pairwise
+from SwRI.problem import SWRISimulatorParallel
+from utils import set_seed, plot_single_objective, plot_result_pairwise
 
 # region: == ARGS ==
 parser = argparse.ArgumentParser()
@@ -32,15 +33,11 @@ parser.add_argument(
 parser.add_argument(
     "-cg", "--check_generation", help="check period", default=1, type=int
 )
-parser.add_argument(
-    "-p", "--problem_type", help="problem type", default='parallel', type=str,
-    choices=['series', 'parallel']
-)
 parser.add_argument("-n", "--name", help="extra name", default="")
 
 args = parser.parse_args()
 print(args)
-out_folder = os.path.join('scratch', 'SwRI', 'NSGA2' + args.name)
+out_folder = os.path.join('scratch', 'SwRI', 'GA_single' + args.name)
 fig_folder = os.path.join(out_folder, 'figure')
 os.makedirs(fig_folder, exist_ok=True)
 # endregion
@@ -49,20 +46,26 @@ os.makedirs(fig_folder, exist_ok=True)
 set_seed(seed_val=args.random_seed, use_torch=True)
 TEMPLATE_FILE = os.path.join('SwRI', 'template', 'FlightDyn_quadH.inp')
 EXEC_FILE = os.path.join('SwRI', "new_fdm")
-x = np.array([[
-    3.9971661079507594, 3.6711272495701843, 3.3501992857774856,
-    3.0389318577493087, 4.422413267471787, 17.
-]])
-if args.problem_type == 'series':
-  x = x[0]
-  problem = SWRISimulator(TEMPLATE_FILE, EXEC_FILE)
-else:
-  problem = SWRISimulatorParallel(TEMPLATE_FILE, EXEC_FILE, num_workers=5)
+values_to_extract = np.array(["Path_traverse_score_based_on_requirements"])
+objective_names = dict(o1="Score")
+obj_indicator = np.array([-1.])
+problem = SWRISimulatorParallel(
+    TEMPLATE_FILE,
+    EXEC_FILE,
+    num_workers=5,
+    values_to_extract=values_to_extract,
+    objective_names=objective_names,
+    obj_indicator=obj_indicator,
+)
 n_obj = problem.n_obj
 objective_names = problem.objective_names
 print('objectives', objective_names)
 print('inputs:', problem.input_names)
 
+x = np.array([[
+    3.9971661079507594, 3.6711272495701843, 3.3501992857774856,
+    3.0389318577493087, 4.422413267471787, 17.
+]])
 y = {}
 problem._evaluate(x, y)
 print("\nGet the output from the problem:")
@@ -74,7 +77,7 @@ for key, value in y.items():
 from pymoo.factory import (
     get_termination, get_sampling, get_crossover, get_mutation
 )
-from pymoo.algorithms.moo.nsga2 import NSGA2
+from pymoo.algorithms.soo.nonconvex.ga import GA
 from pymoo.operators.mixed_variable_operator import (
     MixedVariableSampling, MixedVariableMutation, MixedVariableCrossover
 )
@@ -100,7 +103,7 @@ mutation = MixedVariableMutation(
     }
 )
 
-algorithm = NSGA2(
+algorithm = GA(
     pop_size=args.pop_size,
     n_offsprings=args.pop_size,
     sampling=sampling,
@@ -138,23 +141,15 @@ while obj.has_next():
   if (obj.n_gen - 1) % args.check_generation == 0:
     n_gen = obj.n_gen
     n_nds = len(obj.opt)
-    CV = obj.opt.get('CV').min()
-    print(f"gen[{n_gen}]: n_nds: {n_nds} CV: {CV}")
-    F = -obj.opt.get('F')
-    if n_obj == 3:
-      fig = plot_result_3D(F, objective_names, axis_bound=None)
-    else:
-      fig = plot_result_pairwise(n_obj, F, objective_names, axis_bound=None)
+    print(f"gen[{n_gen}]: n_nds: {n_nds}")
+
+    # plot the whole population
+    F = -obj.pop.get('F')
+    fig = plot_single_objective(F, objective_names)
     fig.supxlabel(str(n_gen), fontsize=20)
     fig.tight_layout()
     fig.savefig(os.path.join(fig_progress_folder, str(n_gen) + '.png'))
     plt.close()
-    # idx = np.argmax(F[:, 0])
-    # for i, tmp in enumerate(F[idx]):
-    #     if i == n_obj-1:
-    #         print(tmp)
-    #     else:
-    #         print(tmp, end=', ')
 
 # finally obtain the result object
 res = obj.result()
@@ -171,23 +166,25 @@ with open(picklePath, 'wb') as output:
   pickle.dump(res_to_save, output, pickle.HIGHEST_PROTOCOL)
 print(picklePath)
 
-F = -res.F
-fig = plot_result_pairwise(
-    n_obj, F, objective_names, axis_bound=None, n_col_default=5, subfigsz=4,
-    fsz=16, sz=20
-)
+F = -obj.pop.get('F').reshape(-1)
+X = obj.pop.get('X')
+fig = plot_single_objective(F, objective_names)
 fig.tight_layout()
 fig.savefig(os.path.join(fig_folder, 'obj_pairwise.png'))
 
-print("\npick the design in the optimal front that has maximal objective 1.")
-indices = np.argsort(F[:, 0])
+indices = np.argsort(F)
 F = F[indices]
 with np.printoptions(formatter={'float': '{: 2.2f}'.format}):
-  print(F[-1])
+  print(F)
 
-print()
-X = res.X
-out = {}
-problem._evaluate(X, out, get_score=True)
-print(out["F"].reshape(-1))
+input_names_dict = {}
+for i in range(len(problem.input_names)):
+  input_names_dict['o' + str(i + 1)] = problem.input_names[i]
+fig = plot_result_pairwise(
+    len(problem.input_names), X, input_names_dict, axis_bound=None,
+    n_col_default=5, subfigsz=4, fsz=16, sz=20
+)
+fig.tight_layout()
+fig.savefig(os.path.join(fig_folder, 'input_pairwise.png'))
+
 # endregion

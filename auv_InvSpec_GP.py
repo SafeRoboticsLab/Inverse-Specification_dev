@@ -337,9 +337,9 @@ while obj.has_next():
         ), fontsize=20
     )
     fig.tight_layout()
-    figProFolder = os.path.join(figFolder, 'progress')
-    os.makedirs(figProFolder, exist_ok=True)
-    fig.savefig(os.path.join(figProFolder, str(n_gen) + '.png'))
+    fig_progress_folder = os.path.join(figFolder, 'progress')
+    os.makedirs(fig_progress_folder, exist_ok=True)
+    fig.savefig(os.path.join(fig_progress_folder, str(n_gen) + '.png'))
     plt.close()
 
   #= interact with human
