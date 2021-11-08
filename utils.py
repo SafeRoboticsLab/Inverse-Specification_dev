@@ -401,6 +401,15 @@ def plot_mean_conf_interval(
 
 
 # PLOT GA POPULATION BY OBJECTIVES
+def plot_single_objective(F, objective_names, subfigsz=4, fsz=16, sz=20):
+  F = F.reshape(-1)
+  fig, ax = plt.subplots(1, 1, figsize=(subfigsz, subfigsz))
+  ax.scatter(np.arange(F.shape[0]), F, c='b', s=sz, alpha=0.5)
+  ax.set_ylabel(objective_names['o1'], fontsize=fsz)
+  ax.set_xlabel("Design Index", fontsize=fsz)
+  return fig
+
+
 def plot_result_pairwise(
     n_obj, F, objective_names, axis_bound, n_col_default=5, subfigsz=4, fsz=16,
     sz=20, lw=3, active_constraint_set=None
