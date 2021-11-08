@@ -1,7 +1,6 @@
 # Please contact the author(s) of this library if you have any questions.
 # Authors: Kai-Chieh Hsu ( kaichieh@princeton.edu )
-# example: python3 swri_ga.py -p p1 -ng 200 -psz 100
-# example: python3 swri_ga.py -cg 1
+# example: python3 swri_ga_scores.py -cg 1 -ng 50 -psz 10
 
 import numpy as np
 import matplotlib.pyplot as plt
