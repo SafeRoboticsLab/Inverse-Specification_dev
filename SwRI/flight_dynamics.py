@@ -10,6 +10,9 @@ import shutil
 import numpy as np
 import subprocess
 
+from functools import partial
+from multiprocessing.dummy import Pool
+
 
 class TemplateProcessor():
 
@@ -61,7 +64,7 @@ class SWRIFlightDynamics():
     self.cwd = os.getcwd()
     self.run_number = 0
 
-  def sim(self, x, delete_folder=True, **kwargs):
+  def sim(self, x, delete_folder=True, verbose=False, **kwargs):
     # implementation of evaluation method in DesignSpace class expects an
     # error if variables are arrays to iterate over values of array - so
     # raise type error if we get arrays in the input dictionary (fortran
@@ -73,7 +76,8 @@ class SWRIFlightDynamics():
       raise TypeError
 
     self.run_number = self.run_number + 1
-    print("Run# ", self.run_number)
+    if verbose:
+      print("Run# ", self.run_number)
 
     run_folder = os.path.join("tempStoreSim", "dex_" + shortuuid.uuid())
     os.makedirs(run_folder)
@@ -88,12 +92,14 @@ class SWRIFlightDynamics():
     tmp_file_out = "output.out"
     self.templateprocessor.writefile(x, os.path.join(directory, tmp_file_in))
     bashCommand = "./exec_file" + "< " + tmp_file_in + " > " + tmp_file_out
-    print("Started Sim")
+    if verbose:
+      print("Started Sim")
     p = subprocess.run(bashCommand, cwd=directory, shell=True)
     if p.returncode != 0:
       print('ERROR during execution of fdm code!')
       sys.exit()
-    print("Finished Sim")
+    if verbose:
+      print("Finished Sim")
 
     postprocess = MetricsReader(os.path.join(directory, self.output_file))
     y = postprocess.read()
@@ -108,3 +114,77 @@ class SWRIFlightDynamics():
     if delete_folder:
       shutil.rmtree(directory)
     return y
+
+
+class SWRIFlightDynamicsParallel():
+  """
+  This creates a simulator using multiple threads to speed up forward
+  simulation.
+
+  Reference: https://stackoverflow.com/questions/14533458/python-threading-multiple-bash-subprocesses
+  """
+
+  def __init__(self, template_file, exec_file, num_workers, **kwargs):
+    self.template_file = template_file
+    self.templateprocessor = TemplateProcessor(self.template_file)
+    self.exec_file = exec_file
+    self.output_file = "metrics.out"
+    self.cwd = os.getcwd()
+    self.run_number = 0
+    self.num_workers = num_workers
+
+  def _create_work_directories(self, input_tuple):
+    x, idx = input_tuple
+    run_folder = os.path.join("tempStoreSim", "dex_" + str(idx))
+    os.makedirs(run_folder, exist_ok=True)
+    directory = os.path.join(self.cwd, run_folder)
+
+    shutil.copyfile(self.exec_file, os.path.join(directory, 'exec_file'))
+    shutil.copystat(self.exec_file, os.path.join(directory, 'exec_file'))
+
+    tmp_file_in = "input.inp"
+    self.templateprocessor.writefile(x, os.path.join(directory, tmp_file_in))
+    return directory
+
+  def _sim(self, directory, delete_folder=True):
+    tmp_file_in = "input.inp"
+    tmp_file_out = "output.out"
+    bashCommand = "./exec_file" + "< " + tmp_file_in + " > " + tmp_file_out
+    p = subprocess.run(bashCommand, cwd=directory, shell=True)
+    if p.returncode != 0:
+      print(directory)
+      print('ERROR during execution of fdm code!')
+      sys.exit()
+
+    postprocess = MetricsReader(os.path.join(directory, self.output_file))
+    y = postprocess.read()
+    for key in y:
+      y[key] = y[key][0]
+      try:
+        y[key] = float(y[key])
+      except ValueError:
+        pass
+
+    # delete folder
+    if delete_folder:
+      shutil.rmtree(directory)
+    return y
+
+  def sim(self, X, delete_folder=True, **kwargs):
+    pool = Pool(self.num_workers)
+    input_tuples = [(x, i) for x, i in zip(X, np.arange(len(X)))]
+    directories = []
+    for directory in pool.imap(self._create_work_directories, input_tuples):
+      directories.append(directory)
+    pool.close()
+    pool.join()
+
+    partial_func = partial(self._sim, delete_folder=delete_folder)
+    pool = Pool(self.num_workers)
+    Y = []
+    for y in pool.imap(partial_func, directories):
+      Y.append(y)
+    self.run_number = self.run_number + len(X)
+    pool.close()
+    pool.join()
+    return Y
