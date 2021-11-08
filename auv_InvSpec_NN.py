@@ -233,7 +233,7 @@ termination = get_termination("n_gen", numGenTotal)
 
 # region: == Define Human Simulator
 from humansim.human_simulator import HumanSimulator
-from humansim.ranker.pair_ranker import PairRanker
+from humansim.ranker.pair_ranker import PairRankerWeights
 
 print("\n== Human Simulator ==")
 active_constraint_set = None
@@ -250,7 +250,7 @@ if active_constraint_set is not None:
   print(active_constraint_set)
 
 human = HumanSimulator(
-    ranker=PairRanker(
+    ranker=PairRankerWeights(
         w_opt, beta=args.beta_h, active_constraint_set=active_constraint_set,
         perfect_rank=True
     )

@@ -191,12 +191,12 @@ def get_infeasible_designs(design_feature, active_constraint_set):
     for i in range(num_design):
       flag = False
       for (feature_idx, threshold) in active_constraint_set:
-        upperBound = False
+        thr_as_upper_bound = False
         if feature_idx[0] == '-':
           feature_idx = int(feature_idx[1:])
-          upperBound = True
+          thr_as_upper_bound = True
         feature_idx = int(feature_idx)
-        if upperBound:
+        if thr_as_upper_bound:
           if design_feature[i, feature_idx] > threshold:
             flag = True
             break
