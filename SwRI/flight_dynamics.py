@@ -134,28 +134,29 @@ class SWRIFlightDynamicsParallel():
     self.templateprocessor = TemplateProcessor(self.template_file)
     self.exec_file = exec_file
     self.output_file = "metrics.out"
+    self.tmp_file_in = "input.inp"
+    self.tmp_file_out = "output.out"
     self.cwd = os.getcwd()
     self.run_number = 0
     self.num_workers = num_workers
 
-  def _create_work_directories(self, input_tuple, tmp_file_in="input.inp"):
+  def _create_work_directories(self, input_tuple):
     x, idx = input_tuple
     run_folder = os.path.join("tempStoreSim", "dex_" + str(idx))
     directory = os.path.join(self.cwd, run_folder)
     if not os.path.isdir(run_folder):
       os.makedirs(run_folder)
-      shutil.copyfile(self.exec_file, os.path.join(directory, 'exec_file'))
-      shutil.copystat(self.exec_file, os.path.join(directory, 'exec_file'))
+    shutil.copyfile(self.exec_file, os.path.join(directory, 'exec_file'))
+    shutil.copystat(self.exec_file, os.path.join(directory, 'exec_file'))
 
-    input_file = os.path.join(directory, tmp_file_in)
-    remove_file(input_file)
+    input_file = os.path.join(directory, self.tmp_file_in)
     self.templateprocessor.writefile(x, input_file)
     return directory
 
-  def _sim(self, directory, delete_folder=True):
-    tmp_file_in = "input.inp"
-    tmp_file_out = "output.out"
-    bashCommand = "./exec_file" + "< " + tmp_file_in + " > " + tmp_file_out
+  def _sim(self, directory):
+    bashCommand = (
+        "./exec_file" + "< " + self.tmp_file_in + " > " + self.tmp_file_out
+    )
     p = subprocess.run(bashCommand, cwd=directory, shell=True)
     if p.returncode != 0:
       print(directory)
@@ -171,18 +172,17 @@ class SWRIFlightDynamicsParallel():
       except ValueError:
         pass
 
-    # delete input-related files in the folder
-    if delete_folder:
-      # shutil.rmtree(directory)
-      remove_file(os.path.join(directory, self.output_file))
-      remove_file(os.path.join(directory, tmp_file_in))
-      remove_file(os.path.join(directory, tmp_file_out))
-      remove_file(os.path.join(directory, "namelist.out"))
-      remove_file(os.path.join(directory, "path.out"))
-      remove_file(os.path.join(directory, "path2.out"))
-      remove_file(os.path.join(directory, "score.out"))
-
     return y
+
+  def _clear(self, directory):
+    shutil.rmtree(directory)
+    # remove_file(os.path.join(directory, self.output_file))
+    # remove_file(os.path.join(directory, self.tmp_file_in))
+    # remove_file(os.path.join(directory, self.tmp_file_out))
+    # remove_file(os.path.join(directory, "namelist.out"))
+    # remove_file(os.path.join(directory, "path.out"))
+    # remove_file(os.path.join(directory, "path2.out"))
+    # remove_file(os.path.join(directory, "score.out"))
 
   def sim(self, X, delete_folder=True, **kwargs):
     pool = Pool(self.num_workers)
@@ -193,12 +193,18 @@ class SWRIFlightDynamicsParallel():
     pool.close()
     pool.join()
 
-    partial_func = partial(self._sim, delete_folder=delete_folder)
     pool = Pool(self.num_workers)
     Y = []
-    for y in pool.imap(partial_func, directories):
+    for y in pool.imap(self._sim, directories):
       Y.append(y)
     self.run_number = self.run_number + len(X)
     pool.close()
     pool.join()
+
+    if delete_folder:
+      pool = Pool(self.num_workers)
+      for _ in pool.imap(self._clear, directories):
+        pass
+      pool.close()
+      pool.join()
     return Y
