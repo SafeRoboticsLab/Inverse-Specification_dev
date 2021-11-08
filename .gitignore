@@ -3,6 +3,7 @@
 **/tempStoreSim
 **/scratch
 .vscode/
+SwRI/template/*
 
 # 
 *.out
