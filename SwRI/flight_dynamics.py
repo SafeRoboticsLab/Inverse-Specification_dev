@@ -14,6 +14,11 @@ from functools import partial
 from multiprocessing.dummy import Pool
 
 
+def remove_file(file_path):
+  if os.path.isfile(file_path):
+    os.remove(file_path)
+
+
 class TemplateProcessor():
 
   def __init__(self, template_file):
@@ -133,17 +138,18 @@ class SWRIFlightDynamicsParallel():
     self.run_number = 0
     self.num_workers = num_workers
 
-  def _create_work_directories(self, input_tuple):
+  def _create_work_directories(self, input_tuple, tmp_file_in="input.inp"):
     x, idx = input_tuple
     run_folder = os.path.join("tempStoreSim", "dex_" + str(idx))
-    os.makedirs(run_folder, exist_ok=True)
     directory = os.path.join(self.cwd, run_folder)
+    if not os.path.isdir(run_folder):
+      os.makedirs(run_folder)
+      shutil.copyfile(self.exec_file, os.path.join(directory, 'exec_file'))
+      shutil.copystat(self.exec_file, os.path.join(directory, 'exec_file'))
 
-    shutil.copyfile(self.exec_file, os.path.join(directory, 'exec_file'))
-    shutil.copystat(self.exec_file, os.path.join(directory, 'exec_file'))
-
-    tmp_file_in = "input.inp"
-    self.templateprocessor.writefile(x, os.path.join(directory, tmp_file_in))
+    input_file = os.path.join(directory, tmp_file_in)
+    remove_file(input_file)
+    self.templateprocessor.writefile(x, input_file)
     return directory
 
   def _sim(self, directory, delete_folder=True):
@@ -165,9 +171,17 @@ class SWRIFlightDynamicsParallel():
       except ValueError:
         pass
 
-    # delete folder
+    # delete input-related files in the folder
     if delete_folder:
-      shutil.rmtree(directory)
+      # shutil.rmtree(directory)
+      remove_file(os.path.join(directory, self.output_file))
+      remove_file(os.path.join(directory, tmp_file_in))
+      remove_file(os.path.join(directory, tmp_file_out))
+      remove_file(os.path.join(directory, "namelist.out"))
+      remove_file(os.path.join(directory, "path.out"))
+      remove_file(os.path.join(directory, "path2.out"))
+      remove_file(os.path.join(directory, "score.out"))
+
     return y
 
   def sim(self, X, delete_folder=True, **kwargs):

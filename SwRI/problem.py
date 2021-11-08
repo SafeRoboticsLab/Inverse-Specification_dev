@@ -179,7 +179,11 @@ class SWRISimulatorParallel(Problem, SWRIProblem):
     pool.close()
     pool.join()
 
-    Y = self.sim.sim(input_dict, delete_folder=True)
+    delete_folder = True
+    if 'delete_folder' in kwargs:
+      delete_folder = kwargs['delete_folder']
+
+    Y = self.sim.sim(input_dict, delete_folder=delete_folder)
 
     get_score = False
     if 'get_score' in kwargs:

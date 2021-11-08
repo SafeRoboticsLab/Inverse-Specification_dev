@@ -105,5 +105,7 @@ if test_problem_wrapper:
   print("--> EXEC TIME: {}".format(exec_time_parallel))
 
   out_tmp = {}
-  problem_parallel._evaluate(X[2:3], out_tmp, get_score=False)
+  problem_parallel._evaluate(
+      X[2:3], out_tmp, get_score=False, delete_folder=False
+  )
   print(out_tmp["F"])
