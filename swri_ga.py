@@ -14,7 +14,9 @@ import os
 os.sys.path.append(os.path.join(os.getcwd(), 'src'))
 
 from SwRI.problem import SWRISimulator, SWRISimulatorParallel
-from utils import set_seed, plot_result_3D, plot_result_pairwise
+from utils import (
+    set_seed, plot_result_3D, plot_result_pairwise, plot_single_objective
+)
 
 # region: == ARGS ==
 parser = argparse.ArgumentParser()
@@ -148,13 +150,16 @@ while obj.has_next():
     fig.supxlabel(str(n_gen), fontsize=20)
     fig.tight_layout()
     fig.savefig(os.path.join(fig_progress_folder, str(n_gen) + '.png'))
-    plt.close()
-    # idx = np.argmax(F[:, 0])
-    # for i, tmp in enumerate(F[idx]):
-    #     if i == n_obj-1:
-    #         print(tmp)
-    #     else:
-    #         print(tmp, end=', ')
+
+    X = obj.opt.get('X')
+    out = {}
+    problem._evaluate(X, out, get_score=True)
+    fig = plot_single_objective(out["F"].reshape(-1), dict(o1="Score"))
+    fig.tight_layout()
+    fig.savefig(
+        os.path.join(fig_progress_folder, 'score_' + str(n_gen) + '.png')
+    )
+    plt.close('all')
 
 # finally obtain the result object
 res = obj.result()
