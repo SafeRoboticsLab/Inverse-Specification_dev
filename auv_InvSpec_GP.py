@@ -68,10 +68,6 @@ parser.add_argument(
 parser.add_argument(
     "-ng", "--num_gen", help="#generation", default=100, type=int
 )
-parser.add_argument(
-    "-st", "--survival_type", help="survival type", default='stoc', type=str,
-    choices=['stoc', 'noisy_stoc', 'det', 'crowd']
-)
 
 # human simulator
 parser.add_argument(
@@ -81,8 +77,6 @@ parser.add_argument(
     "-ht", "--human_type", help="human type", default='range_hard', type=str,
     choices=['speed', 'range', 'range_hard']
 )
-# parser.add_argument("-hw", "--humanWeights",    help="human weights",
-#     default=[0.7, 0.1, 0.2],  nargs="*", type=float)
 
 # human interface
 parser.add_argument(
@@ -331,11 +325,8 @@ while obj.has_next():
       fig = plot_result_3D(F, objective_names, axis_bound)
     else:
       fig = plot_result_pairwise(n_obj, F, objective_names, axis_bound)
-    # fig.suptitle(args.survival_type, fontsize=20)
     fig.supxlabel(
-        '{}-G{}: {} cumulative queries'.format(
-            args.survival_type, n_gen, n_acc_fb
-        ), fontsize=20
+        'G{}: {} cumulative queries'.format(n_gen, n_acc_fb), fontsize=20
     )
     fig.tight_layout()
     fig_progress_folder = os.path.join(figFolder, 'progress')
