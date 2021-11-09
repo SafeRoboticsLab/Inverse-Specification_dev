@@ -90,3 +90,20 @@ class PairRankerWeights(PairRanker):
         )
     )
     return designs @ self.w_opt
+
+
+class PairRankerSimulator(PairRanker):
+
+  def __init__(
+      self, simulator, beta=5., active_constraint_set=None, perfect_rank=False,
+      indifference=0.1
+  ):
+    super().__init__(
+        beta=beta, active_constraint_set=active_constraint_set,
+        perfect_rank=perfect_rank, indifference=indifference
+    )
+    self.sim = simulator
+
+  def _get_scores(self, query, feasible_index, **kwargs):
+    designs = query['X'][feasible_index, :]
+    return self.sim.get_fetures(designs, get_score=True, **kwargs).reshape(-1)

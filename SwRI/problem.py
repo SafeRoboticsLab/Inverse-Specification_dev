@@ -1,7 +1,7 @@
 # Please contact the author(s) of this library if you have any questions.
 # Authors: Kai-Chieh Hsu ( kaichieh@princeton.edu )
 
-from abc import ABC, abstractmethod
+from abc import ABC
 import numpy as np
 from functools import partial
 from multiprocessing.dummy import Pool
