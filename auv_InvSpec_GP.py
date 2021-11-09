@@ -3,16 +3,42 @@
 # test #queries: python3 auv_InvSpec_GP.py -nw 25 -ng 100 -ip 25 -nq <number>
 # default: python3 auv_InvSpec_GP.py -nw 0 -ng 300 -ip 25 -nq 2 -mq 20 -n def
 
+import time
+import os
+import copy
 import numpy as np
 import matplotlib.pyplot as plt
 import argparse
 import pickle
-import time
-import os
 
 os.sys.path.append(os.path.join(os.getcwd(), 'src'))
 
 from auv.problem import AUVsim
+
+# design optimization module
+from pymoo.factory import (
+    get_termination, get_sampling, get_crossover, get_mutation
+)
+from pymoo.operators.mixed_variable_operator import (
+    MixedVariableSampling, MixedVariableMutation, MixedVariableCrossover
+)
+from pymoo.core.duplicate import DefaultDuplicateElimination
+from invspec.nsga_inv_spec import NSGAInvSpec
+
+# human simulator module
+from humansim.human_simulator import HumanSimulator
+from humansim.ranker.pair_ranker import PairRankerWeights
+
+# inverse specification module
+from funct_approx.config import GPConfig
+from invspec.inv_spec import InvSpec
+from invspec.querySelector.random_selector import RandomQuerySelector
+from invspec.querySelector.mutual_info_query_selector import (
+    MutualInfoQuerySelector
+)
+from invspec.inference.reward_GP import RewardGP
+
+# others
 from utils import (
     set_seed, save_obj, get_infeasible_designs, get_inference_output
 )
@@ -186,18 +212,6 @@ axis_bound[:, 1] = F_max
 # endregion
 
 # region: == Define Algorithm ==
-from pymoo.factory import (
-    get_termination, get_sampling, get_crossover, get_mutation
-)
-from invspec.nsga_invSpec import NSGA_INV_SPEC
-from pymoo.operators.mixed_variable_operator import (
-    MixedVariableSampling, MixedVariableMutation, MixedVariableCrossover
-)
-from pymoo.core.duplicate import DefaultDuplicateElimination
-# from pymoo.configuration import Configuration
-
-# Configuration.show_compile_hint = False
-
 sampling = MixedVariableSampling(
     problem.fparams.mask, {
         "real": get_sampling("real_random"),
@@ -219,7 +233,7 @@ mutation = MixedVariableMutation(
     }
 )
 
-algorithm = NSGA_INV_SPEC(
+algorithm = NSGAInvSpec(
     pop_size=args.pop_size, n_offsprings=args.pop_size, sampling=sampling,
     crossover=crossover, mutation=mutation,
     eliminate_duplicates=DefaultDuplicateElimination(epsilon=1e-3),
@@ -231,10 +245,7 @@ numGenTotal = args.num_gen
 termination = get_termination("n_gen", numGenTotal)
 # endregion
 
-# region: == Define Human Simulator
-from humansim.human_simulator import HumanSimulator
-from humansim.ranker.pair_ranker import PairRankerWeights
-
+# region: == Define Human Simulator ==
 print("\n== Human Simulator ==")
 active_constraint_set = None
 if args.human_type == 'speed':
@@ -258,7 +269,6 @@ human = HumanSimulator(
 # endregion
 
 # region: == Define invSpec ==
-from funct_approx.config import GPConfig
 
 print("\n== InvSpec Construction ==")
 CONFIG = GPConfig(
@@ -269,13 +279,6 @@ CONFIG = GPConfig(
     NOISE_PROBIT=args.noise_probit
 )
 print(vars(CONFIG), '\n')
-
-from invspec.inv_spec import InvSpec
-from invspec.querySelector.random_selector import RandomQuerySelector
-from invspec.querySelector.mutual_info_query_selector import (
-    MutualInfoQuerySelector
-)
-from invspec.inference.reward_GP import RewardGP
 
 dimension = w_opt.shape[0]
 initialPoint = np.zeros(dimension)
@@ -299,8 +302,6 @@ else:
 # region: == Optimization ==
 print("\n== Optimization starts ...")
 # perform a copy of the algorithm to ensure reproducibility
-import copy
-
 obj = copy.deepcopy(algorithm)
 # obj.fitness_func = lambda x: 1.
 

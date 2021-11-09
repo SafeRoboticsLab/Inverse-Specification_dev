@@ -144,7 +144,7 @@ class RankAndHumanFitnessSurvival(Survival):
     return pop[survivors]
 
 
-class NSGA_INV_SPEC(GeneticAlgorithm):
+class NSGAInvSpec(GeneticAlgorithm):
 
   def __init__(
       self,
@@ -313,4 +313,4 @@ def calc_crowding_distance(F, filter_out_duplicates=True):
   return crowding
 
 
-parse_doc_string(NSGA_INV_SPEC.__init__)
+parse_doc_string(NSGAInvSpec.__init__)
