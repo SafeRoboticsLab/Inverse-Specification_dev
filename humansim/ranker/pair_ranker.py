@@ -1,7 +1,7 @@
 # Please contact the author(s) of this library if you have any questions.
 # Authors: Kai-Chieh Hsu ( kaichieh@princeton.edu )
 
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 import numpy as np
 
 from humansim.ranker.ranker import Ranker
@@ -23,39 +23,42 @@ class PairRanker(Ranker):
     self.indifference = indifference
 
   def _get_ranking(self, query, **kwargs):
-    n_designs, _ = query.shape
+    """Gets the preference of designs or returns "cannot distinguish".
+
+    Args:
+        query (dict):
+            'F' (np.ndarray, (#designs x #features)): designs represented by
+                their features (objectives defined in `problem`).
+            'X' (np.ndarray, (#designs x #components)): designs represented by
+                their component values (inputs defined in `problem`).
+
+    Returns:
+        int: feedback, 0: first, 1: second, 2: cannot distinguish.
+    """
+    n_designs, _ = query['F'].shape
     assert n_designs == 2, "This ranker only supports binary preference!"
 
     if self.consider_constarint:
-      indicator = get_infeasible_designs(query, self.active_constraint_set)
-      # infeasible_index = np.arange(query.shape[0])[indicator]
+      indicator = get_infeasible_designs(
+          query['F'], self.active_constraint_set
+      )
       feasible_index = np.arange(n_designs)[np.logical_not(indicator)]
-      feasible_designs = query[feasible_index]
-      scores = self._get_scores(feasible_designs)
-      order_first_part = feasible_index[np.argsort(-scores)]
-
-      if feasible_designs.shape[0] == 0:
-        feedback = 2
-      elif feasible_designs.shape[0] == 1:
-        feedback = feasible_index[0]
-      else:
-        p = 1 / (1 + np.exp(self.beta * (scores[0] - scores[1])))
-        if self.perfect_rank:
-          feedback = order_first_part[0]
-        else:
-          if np.abs(p - 0.5) < self.indifference:
-            feedback = 2
-          else:
-            feedback = order_first_part[0]
     else:
-      scores = self._get_scores(query)
-      order = np.argsort(-scores)
+      feasible_index = np.arange(n_designs)
 
-      p = 1 / (1 + np.exp(self.beta * (scores[0] - scores[1])))
+    if feasible_index.shape[0] == 0:
+      feedback = 2
+    elif feasible_index.shape[0] == 1:
+      feedback = feasible_index[0]
+    else:
+      scores = self._get_scores(query, feasible_index, **kwargs)
+      order = feasible_index[np.argsort(-scores)]
+
+      prob = 1 / (1 + np.exp(self.beta * (scores[0] - scores[1])))
       if self.perfect_rank:
         feedback = order[0]
       else:
-        if np.abs(p - 0.5) < self.indifference:
+        if np.abs(prob - 0.5) < self.indifference:
           feedback = 2
         else:
           feedback = order[0]
@@ -63,7 +66,7 @@ class PairRanker(Ranker):
     return feedback
 
   @abstractmethod
-  def _get_scores(self, designs):
+  def _get_scores(self, query, feasible_index, **kwargs):
     raise NotImplementedError
 
 
@@ -79,7 +82,8 @@ class PairRankerWeights(PairRanker):
     )
     self.w_opt = w_opt
 
-  def _get_scores(self, designs):
+  def _get_scores(self, query, feasible_index, **kwargs):
+    designs = query['F'][feasible_index, :]
     assert designs.shape[1] == self.w_opt.shape[0], (
         "#features ({}) doesn't match #weights ({}).".format(
             designs.shape[1], self.w_opt.shape[0]

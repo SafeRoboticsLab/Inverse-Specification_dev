@@ -371,7 +371,8 @@ while obj.has_next():
       action = np.array([]).reshape(1, 0)
       for idx in indices:
         Ds = F[idx, :]
-        fb = human.get_ranking(Ds)
+        query = dict(F=Ds, X=None)
+        fb = human.get_ranking(query)
         if obj.n_gen == args.num_warmup and args.num_warmup != 0:
           print(Ds, fb)
 

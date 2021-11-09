@@ -17,8 +17,11 @@ class HumanSimulator(ABC):
     """Gets the preference of designs or returns "cannot distinguish".
 
     Args:
-        query (np.array, (#designs x #features)): designs represented by
-            their features (objectives defined in `problem`)
+        query (dict):
+            'F' (np.ndarray, (#designs x #features)): designs represented by
+                their features (objectives defined in `problem`).
+            'X' (np.ndarray, (#designs x #components)): designs represented by
+                their component values (inputs defined in `problem`).
     """
     return self.ranker.get_ranking(query, **kwargs)
 
@@ -26,7 +29,10 @@ class HumanSimulator(ABC):
     """Accepts or rejects this design.
 
     Args:
-        query (np.array, (#features,)): a design represented by its features
-            (objectives defined in `problem`)
+        query (dict):
+            'F' (np.ndarray, (#designs x #features)): designs represented by
+                their features (objectives defined in `problem`).
+            'X' (np.ndarray, (#designs x #components)): designs represented by
+                their component values (inputs defined in `problem`).
     """
     return self.confirmer.confirm(query, **kwargs)
