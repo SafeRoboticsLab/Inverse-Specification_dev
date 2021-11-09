@@ -12,7 +12,7 @@ import pickle
 
 os.sys.path.append(os.path.join(os.getcwd(), 'src'))
 
-from SwRI.problem import SWRIProblem
+from swri.problem import SWRIProblem
 
 # design optimization module
 from pymoo.factory import (
@@ -48,15 +48,15 @@ parser.add_argument("-n", "--name", help="extra name", default="")
 
 args = parser.parse_args()
 print(args)
-out_folder = os.path.join('scratch', 'SwRI', 'GA_single' + args.name)
+out_folder = os.path.join('scratch', 'swri', 'GA_single' + args.name)
 fig_folder = os.path.join(out_folder, 'figure')
 os.makedirs(fig_folder, exist_ok=True)
 # endregion
 
 # region: == Define Problem ==
 set_seed(seed_val=args.random_seed, use_torch=True)
-TEMPLATE_FILE = os.path.join('SwRI', 'template', 'FlightDyn_quadH.inp')
-EXEC_FILE = os.path.join('SwRI', "new_fdm")
+TEMPLATE_FILE = os.path.join('swri', 'template', 'FlightDyn_quadH.inp')
+EXEC_FILE = os.path.join('swri', "new_fdm")
 values_to_extract = np.array(["Path_traverse_score_based_on_requirements"])
 objective_names = dict(o1="Score")
 obj_indicator = np.array([-1.])

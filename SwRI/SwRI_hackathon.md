@@ -1,4 +1,4 @@
-# DesignSpace, Name=SwRI
+# DesignSpace, Name=swri
 ## Input
 <!-- battery_capacity, input, continuous, 1100.0 -->
 * control_i_flight_path, input, discrete, {1, 3, 4, 5}
@@ -58,7 +58,7 @@
   * template_file
   * exec_file
 * The black-box simulator can be obtained here:
-https://git.isis.vanderbilt.edu/SwRI/flight-dynamics-model
+https://git.isis.vanderbilt.edu/swri/flight-dynamics-model
 
 ## Optimize
 ### Variables

@@ -3,10 +3,10 @@
 **/tempStoreSim
 **/scratch
 .vscode/
-SwRI/template/*
+swri/template/*
 
 # 
 *.out
-SwRI/flight-dynamics-model/
-SwRI/new_fdm
+swri/flight-dynamics-model/
+swri/new_fdm
 tmp.py

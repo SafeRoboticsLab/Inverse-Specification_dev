@@ -1,13 +1,13 @@
 import os
 import time
 import numpy as np
-from SwRI.flight_dynamics import SWRIFlightDynamics, SWRIFlightDynamicsParallel
-from SwRI.problem import SWRIElementwiseProblem, SWRIProblem
+from swri.flight_dynamics import SWRIFlightDynamics, SWRIFlightDynamicsParallel
+from swri.problem import SWRIElementwiseProblem, SWRIProblem
 
 # template_file: the path to the architecture of the aircraft
 # exec_file: the path to the flight dynamics model
-TEMPLATE_FILE = os.path.join('SwRI', 'template', 'FlightDyn_quadH.inp')
-EXEC_FILE = os.path.join('SwRI', "new_fdm")
+TEMPLATE_FILE = os.path.join('swri', 'template', 'FlightDyn_quadH.inp')
+EXEC_FILE = os.path.join('swri', "new_fdm")
 speed_list = (np.arange(10) + 1) * 5
 test_simulator = True
 test_problem_wrapper = True
