@@ -2,19 +2,31 @@
 # Authors: Kai-Chieh Hsu ( kaichieh@princeton.edu )
 # example: python3 swri_ga_scores.py -cg 1 -ng 50 -psz 10
 
+import time
+import os
+import copy
 import numpy as np
 import matplotlib.pyplot as plt
 import argparse
 import pickle
-import time
-
-timestr = time.strftime("%m-%d-%H_%M")
-import os
 
 os.sys.path.append(os.path.join(os.getcwd(), 'src'))
 
-from SwRI.problem import SWRISimulatorParallel
+from SwRI.problem import SWRIProblem
+
+# design optimization module
+from pymoo.factory import (
+    get_termination, get_sampling, get_crossover, get_mutation
+)
+from pymoo.algorithms.soo.nonconvex.ga import GA
+from pymoo.operators.mixed_variable_operator import (
+    MixedVariableSampling, MixedVariableMutation, MixedVariableCrossover
+)
+
+# others
 from utils import set_seed, plot_single_objective, plot_result_pairwise
+
+timestr = time.strftime("%m-%d-%H_%M")
 
 # region: == ARGS ==
 parser = argparse.ArgumentParser()
@@ -48,7 +60,7 @@ EXEC_FILE = os.path.join('SwRI', "new_fdm")
 values_to_extract = np.array(["Path_traverse_score_based_on_requirements"])
 objective_names = dict(o1="Score")
 obj_indicator = np.array([-1.])
-problem = SWRISimulatorParallel(
+problem = SWRIProblem(
     TEMPLATE_FILE,
     EXEC_FILE,
     num_workers=5,
@@ -73,14 +85,6 @@ for key, value in y.items():
 # endregion
 
 # region: == Define Algorithm ==
-from pymoo.factory import (
-    get_termination, get_sampling, get_crossover, get_mutation
-)
-from pymoo.algorithms.soo.nonconvex.ga import GA
-from pymoo.operators.mixed_variable_operator import (
-    MixedVariableSampling, MixedVariableMutation, MixedVariableCrossover
-)
-
 sampling = MixedVariableSampling(
     problem.input_mask, {
         "real": get_sampling("real_random"),
@@ -117,8 +121,6 @@ termination = get_termination("n_gen", args.num_gen)
 # region: == Define Solver ==
 print("\n== Optimization starts ...")
 # perform a copy of the algorithm to ensure reproducibility
-import copy
-
 obj = copy.deepcopy(algorithm)
 
 # let the algorithm know what problem we are intending to solve and provide

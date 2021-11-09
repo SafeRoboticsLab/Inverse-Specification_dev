@@ -2,21 +2,33 @@
 # Authors: Kai-Chieh Hsu ( kaichieh@princeton.edu )
 # example: python3 swri_ga.py -cg 1 -psz 10 -ng 100
 
+import time
+import os
+import copy
 import numpy as np
 import matplotlib.pyplot as plt
 import argparse
 import pickle
-import time
-
-timestr = time.strftime("%m-%d-%H_%M")
-import os
 
 os.sys.path.append(os.path.join(os.getcwd(), 'src'))
 
-from SwRI.problem import SWRISimulator, SWRISimulatorParallel
+from SwRI.problem import SWRIElementwiseProblem, SWRIProblem
+
+# design optimization module
+from pymoo.factory import (
+    get_termination, get_sampling, get_crossover, get_mutation
+)
+from pymoo.algorithms.moo.nsga2 import NSGA2
+from pymoo.operators.mixed_variable_operator import (
+    MixedVariableSampling, MixedVariableMutation, MixedVariableCrossover
+)
+
+# others
 from utils import (
     set_seed, plot_result_3D, plot_result_pairwise, plot_single_objective
 )
+
+timestr = time.strftime("%m-%d-%H_%M")
 
 # region: == ARGS ==
 parser = argparse.ArgumentParser()
@@ -57,9 +69,9 @@ x = np.array([[
 ]])
 if args.problem_type == 'series':
   x = x[0]
-  problem = SWRISimulator(TEMPLATE_FILE, EXEC_FILE)
+  problem = SWRIElementwiseProblem(TEMPLATE_FILE, EXEC_FILE)
 else:
-  problem = SWRISimulatorParallel(TEMPLATE_FILE, EXEC_FILE, num_workers=5)
+  problem = SWRIProblem(TEMPLATE_FILE, EXEC_FILE, num_workers=5)
 n_obj = problem.n_obj
 objective_names = problem.objective_names
 print('objectives', objective_names)
@@ -73,14 +85,6 @@ for key, value in y.items():
 # endregion
 
 # region: == Define Algorithm ==
-from pymoo.factory import (
-    get_termination, get_sampling, get_crossover, get_mutation
-)
-from pymoo.algorithms.moo.nsga2 import NSGA2
-from pymoo.operators.mixed_variable_operator import (
-    MixedVariableSampling, MixedVariableMutation, MixedVariableCrossover
-)
-
 sampling = MixedVariableSampling(
     problem.input_mask, {
         "real": get_sampling("real_random"),
@@ -117,8 +121,6 @@ termination = get_termination("n_gen", args.num_gen)
 # region: == Define Solver ==
 print("\n== Optimization starts ...")
 # perform a copy of the algorithm to ensure reproducibility
-import copy
-
 obj = copy.deepcopy(algorithm)
 
 # let the algorithm know what problem we are intending to solve and provide

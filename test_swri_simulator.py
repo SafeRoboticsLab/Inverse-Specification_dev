@@ -2,7 +2,7 @@ import os
 import time
 import numpy as np
 from SwRI.flight_dynamics import SWRIFlightDynamics, SWRIFlightDynamicsParallel
-from SwRI.problem import SWRISimulator, SWRISimulatorParallel
+from SwRI.problem import SWRIElementwiseProblem, SWRIProblem
 
 # template_file: the path to the architecture of the aircraft
 # exec_file: the path to the flight dynamics model
@@ -75,7 +75,7 @@ if test_problem_wrapper:
   X[:, 4] = 4.422413267471787
   X[:, 5] = speed_list
   print("\n")
-  problem = SWRISimulator(TEMPLATE_FILE, EXEC_FILE)
+  problem = SWRIElementwiseProblem(TEMPLATE_FILE, EXEC_FILE)
   print(problem.objective_names.values())
   scores_series = np.empty_like(speed_list)
   exec_time_series = 0.
@@ -93,7 +93,7 @@ if test_problem_wrapper:
   print("scores:", scores_series)
   print("--> EXEC TIME: {}".format(exec_time_series))
 
-  problem_parallel = SWRISimulatorParallel(TEMPLATE_FILE, EXEC_FILE, 5)
+  problem_parallel = SWRIProblem(TEMPLATE_FILE, EXEC_FILE, 5)
   out_parallel = {}
   exec_time_parallel = 0.
   start_time = time.time()

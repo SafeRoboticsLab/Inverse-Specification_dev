@@ -129,7 +129,9 @@ class SWRIFlightDynamicsParallel():
   Reference: https://stackoverflow.com/questions/14533458/python-threading-multiple-bash-subprocesses
   """
 
-  def __init__(self, template_file, exec_file, num_workers, **kwargs):
+  def __init__(
+      self, template_file, exec_file, num_workers, prefix="dex_", **kwargs
+  ):
     self.template_file = template_file
     self.templateprocessor = TemplateProcessor(self.template_file)
     self.exec_file = exec_file
@@ -139,10 +141,11 @@ class SWRIFlightDynamicsParallel():
     self.cwd = os.getcwd()
     self.run_number = 0
     self.num_workers = num_workers
+    self.prefix = prefix
 
   def _create_work_directories(self, input_tuple):
     x, idx = input_tuple
-    run_folder = os.path.join("tempStoreSim", "dex_" + str(idx))
+    run_folder = os.path.join("tempStoreSim", self.prefix + str(idx))
     directory = os.path.join(self.cwd, run_folder)
     if not os.path.isdir(run_folder):
       os.makedirs(run_folder)

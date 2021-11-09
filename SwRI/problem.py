@@ -10,7 +10,7 @@ from .flight_dynamics import SWRIFlightDynamics, SWRIFlightDynamicsParallel
 from pymoo.core.problem import ElementwiseProblem, Problem
 
 
-class SWRIProblem(ABC):
+class SWRIWrapper(ABC):
 
   def __init__(
       self, values_to_extract=None, objective_names=None, obj_indicator=None
@@ -87,94 +87,47 @@ class SWRIProblem(ABC):
 
     return np.array(y) * self.obj_indicator
 
-  @abstractmethod
-  def _evaluate(self, x, out, *args, **kwargs):
-    raise NotImplementedError
 
-
-class SWRISimulator(ElementwiseProblem, SWRIProblem):
+class SWRISimSerial(SWRIWrapper):
 
   def __init__(
       self, template_file, exec_file, values_to_extract=None,
       objective_names=None, obj_indicator=None
   ):
-
-    # SwRI
-    SWRIProblem.__init__(
-        self, values_to_extract=values_to_extract,
-        objective_names=objective_names, obj_indicator=obj_indicator
+    super().__init__(
+        values_to_extract=values_to_extract, objective_names=objective_names,
+        obj_indicator=obj_indicator
     )
     self.sim = SWRIFlightDynamics(template_file, exec_file)
 
-    # Pymoo
-    xl = np.zeros(len(self.input_names))
-    xu = np.array([5., 5., 5., 5., 5., 50.])
-    Problem.__init__(
-        self, n_var=len(self.input_names), n_obj=len(self.objective_names),
-        n_constr=0, xl=xl, xu=xu
-    )
-
-  def _evaluate(self, x, out, *args, **kwargs):
+  def get_fetures(self, x, *args, **kwargs):
     input = self._input_wrapper(x)
     output = self.sim.sim(input, delete_folder=True)
     get_score = False
     if 'get_score' in kwargs:
       get_score = kwargs['get_score']
-    out["F"] = self._output_extracter(output, get_score=get_score)
+    return self._output_extracter(output, get_score=get_score)
 
 
-class SWRISimulatorParallel(Problem, SWRIProblem):
+class SWRISimParallel(SWRIWrapper):
 
   def __init__(
-      self, template_file, exec_file, num_workers, values_to_extract=None,
-      objective_names=None, obj_indicator=None
+      self, template_file, exec_file, num_workers, prefix='eval_',
+      values_to_extract=None, objective_names=None, obj_indicator=None
   ):
-
-    # SwRI
-    SWRIProblem.__init__(
-        self, values_to_extract=values_to_extract,
-        objective_names=objective_names, obj_indicator=obj_indicator
+    super().__init__(
+        values_to_extract=values_to_extract, objective_names=objective_names,
+        obj_indicator=obj_indicator
     )
-    # parallel
     self.num_workers = num_workers
-    # self.sim = SWRIFlightDynamics(template_file, exec_file)
     self.sim = SWRIFlightDynamicsParallel(
-        template_file, exec_file, self.num_workers
+        template_file, exec_file, self.num_workers, prefix=prefix
     )
 
-    # Pymoo
-    xl = np.zeros(len(self.input_names))
-    xu = np.array([5., 5., 5., 5., 5., 50.])
-    Problem.__init__(
-        self, n_var=len(self.input_names), n_obj=len(self.objective_names),
-        n_constr=0, xl=xl, xu=xu
-    )
-
-  # def _evaluate_individual(self, x, **kwargs):
-  #   input = self._input_wrapper(x)
-  #   output = self.sim.sim(input, delete_folder=True)
-  #   get_score = False
-  #   if 'get_score' in kwargs:
-  #     get_score = kwargs['get_score']
-  #   return self._output_extracter(output, get_score=get_score)
-
-  # def _evaluate(self, X, out, *args, **kwargs):
-  #   partial_func = partial(self._evaluate_individual, **kwargs)
-  #   get_score = False
-  #   if 'get_score' in kwargs:
-  #     get_score = kwargs['get_score']
-  #   if get_score:
-  #     out["F"] = np.empty(shape=(X.shape[0], 1))
-  #   else:
-  #     out["F"] = np.empty(shape=(X.shape[0], self.n_obj))
-  #   pool = Pool(self.num_workers)
-  #   for i, y in enumerate(pool.imap(partial_func, X)):
-  #     out["F"][i, :] = y
-
-  def _evaluate(self, X, out, *args, **kwargs):
+  def get_fetures(self, X, *args, **kwargs):
     pool = Pool(self.num_workers)
     input_dict = []
-    for i, input in enumerate(pool.imap(self._input_wrapper, X)):
+    for input in pool.imap(self._input_wrapper, X):
       input_dict.append(input)
     pool.close()
     pool.join()
@@ -189,13 +142,66 @@ class SWRISimulatorParallel(Problem, SWRIProblem):
     if 'get_score' in kwargs:
       get_score = kwargs['get_score']
     if get_score:
-      out["F"] = np.empty(shape=(X.shape[0], 1))
+      features = np.empty(shape=(X.shape[0], 1))
     else:
-      out["F"] = np.empty(shape=(X.shape[0], self.n_obj))
+      features = np.empty(shape=(X.shape[0], self.n_obj))
 
     pool = Pool(self.num_workers)
     partial_func = partial(self._output_extracter, get_score=get_score)
     for i, y in enumerate(pool.imap(partial_func, Y)):
-      out["F"][i, :] = y
+      features[i, :] = y
     pool.close()
     pool.join()
+
+    return features
+
+
+class SWRIElementwiseProblem(ElementwiseProblem, SWRISimSerial):
+
+  def __init__(
+      self, template_file, exec_file, values_to_extract=None,
+      objective_names=None, obj_indicator=None
+  ):
+
+    # SwRI
+    SWRISimSerial.__init__(
+        self, template_file, exec_file, values_to_extract=values_to_extract,
+        objective_names=objective_names, obj_indicator=obj_indicator
+    )
+
+    # Pymoo
+    xl = np.zeros(len(self.input_names))
+    xu = np.array([5., 5., 5., 5., 5., 50.])
+    ElementwiseProblem.__init__(
+        self, n_var=len(self.input_names), n_obj=len(self.objective_names),
+        n_constr=0, xl=xl, xu=xu
+    )
+
+  def _evaluate(self, x, out, *args, **kwargs):
+    out['F'] = self.get_fetures(x, *args, **kwargs)
+
+
+class SWRIProblem(Problem, SWRISimParallel):
+
+  def __init__(
+      self, template_file, exec_file, num_workers, prefix='eval_',
+      values_to_extract=None, objective_names=None, obj_indicator=None
+  ):
+
+    # SwRI
+    SWRISimParallel.__init__(
+        self, template_file, exec_file, num_workers, prefix=prefix,
+        values_to_extract=values_to_extract, objective_names=objective_names,
+        obj_indicator=obj_indicator
+    )
+
+    # Pymoo
+    xl = np.zeros(len(self.input_names))
+    xu = np.array([5., 5., 5., 5., 5., 50.])
+    Problem.__init__(
+        self, n_var=len(self.input_names), n_obj=len(self.objective_names),
+        n_constr=0, xl=xl, xu=xu
+    )
+
+  def _evaluate(self, X, out, *args, **kwargs):
+    out['F'] = self.get_fetures(X, *args, **kwargs)
