@@ -106,4 +106,7 @@ class PairRankerSimulator(PairRanker):
 
   def _get_scores(self, query, feasible_index, **kwargs):
     designs = query['X'][feasible_index, :]
-    return self.sim.get_fetures(designs, get_score=True, **kwargs).reshape(-1)
+    scores = self.sim.get_fetures(designs, get_score=True, **kwargs)
+    scores = scores.reshape(-1)
+    print('scores:', scores)
+    return scores

@@ -37,6 +37,8 @@ class Inference(ABC):
       # currently only interact with objectives:
       # add '-' because we want to maximize, but GA wants to minimize
       if self.F_normalize:  # normalize by a priori F_min anf F_max
+        assert (self.F_min is not None and self.F_max is not None),\
+            print("Need to provide feature bounds if using normalize")
         F = self.normalize(-designs.get('F'))
       else:
         F = -designs.get('F')
