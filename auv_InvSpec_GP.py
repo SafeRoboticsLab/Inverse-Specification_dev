@@ -40,9 +40,7 @@ from invspec.inference.reward_GP import RewardGP
 
 # others
 from utils import (
-    set_seed, save_obj, get_infeasible_designs, get_inference_output
-)
-from utils import (
+    set_seed, save_obj, get_infeasible_designs, get_inference_output,
     plot_result_3D, plot_result_pairwise, plot_output_2D, plot_output_3D
 )
 
@@ -263,7 +261,6 @@ human = HumanSimulator(
 # endregion
 
 # region: == Define invSpec ==
-
 print("\n== InvSpec Construction ==")
 CONFIG = GPConfig(
     SEED=args.random_seed, MAX_QUERIES=args.max_queries,

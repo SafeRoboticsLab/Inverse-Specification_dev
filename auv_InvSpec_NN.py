@@ -313,11 +313,11 @@ while obj.has_next():
     n_nds = len(obj.opt)
     CV = obj.opt.get('CV').min()
     print(f"gen[{n_gen}]: n_nds: {n_nds} CV: {CV}")
-    F = -obj.opt.get('F')
+    features = -obj.opt.get('F')
     if n_obj == 3:
-      fig = plot_result_3D(F, objective_names, axis_bound)
+      fig = plot_result_3D(features, objective_names, axis_bound)
     else:
-      fig = plot_result_pairwise(n_obj, F, objective_names, axis_bound)
+      fig = plot_result_pairwise(n_obj, features, objective_names, axis_bound)
     # fig.suptitle(args.survival_type, fontsize=20)
     fig.supxlabel(
         '{}-G{}: {} cumulative queries'.format(
@@ -337,7 +337,7 @@ while obj.has_next():
     time2update = (obj.n_gen - args.num_warmup) % args.interact_period == 0
   if time2update and (obj.n_gen < numGenTotal):
     print("\nAt generation {}".format(obj.n_gen))
-    F = agent.normalize(-obj.opt.get('F'))
+    features = agent.normalize(-obj.opt.get('F'))
     n_acc_fb = agent.get_number_feedback()
 
     # if obj.n_gen == args.num_warmup and args.num_warmup != 0:
@@ -358,7 +358,7 @@ while obj.has_next():
       # 2. get feedback from humans
       action = np.array([]).reshape(1, 0)
       for idx in indices:
-        Ds = F[idx, :]
+        Ds = features[idx, :]
         query = dict(F=Ds, X=None)
         fb = human.get_ranking(query)
         if obj.n_gen == args.num_warmup and args.num_warmup != 0:
@@ -391,22 +391,21 @@ while obj.has_next():
       updateTimes += 1
 
       # 4. store and report
-      indices = np.argsort(F[:, 0])
-      F = F[indices]
+      indices = np.argsort(features[:, 0])
+      features = features[indices]
       save_obj(agent, os.path.join(agentFolder, 'agent' + str(updateTimes)))
-      feasible_index, scores = getHumanScores(F, w_opt, active_constraint_set)
-      acc = len(feasible_index) / len(F)
+      feasible_index, scores = getHumanScores(
+          features, w_opt, active_constraint_set
+      )
+      acc = len(feasible_index) / len(features)
       print('Feasible ratio: {:.3f}'.format(acc))
       with np.printoptions(formatter={'float': '{: .3f}'.format}):
-        print(F)
+        print(features)
         print(scores)
       print()
     else:
       print("Exceed maximal number of queries!", end=' ')
       print("Accumulated {:d} feedback".format(n_acc_fb))
-
-    # report(agent, F, w_opt, showRankNumber=10,
-    #     active_constraint_set=active_constraint_set)
 
 end_time = time.time()
 print("It took {:.1f} seconds".format(end_time - start_time))
@@ -423,17 +422,17 @@ picklePath = os.path.join(outFolder, timestr + 'res.pkl')
 with open(picklePath, 'wb') as output:
   pickle.dump(res, output, pickle.HIGHEST_PROTOCOL)
 
-F = -res.F
+features = -res.F
 fig = plot_result_pairwise(
-    n_obj, F, objective_names, axis_bound,
+    n_obj, features, objective_names, axis_bound,
     active_constraint_set=active_constraint_set
 )
 fig.tight_layout()
 fig.savefig(os.path.join(figFolder, 'objPairwise.png'))
 
-indices = np.argsort(F[:, 0])
-F = F[indices]
-_F = agent.inference.normalize(F)
+indices = np.argsort(features[:, 0])
+features = features[indices]
+_F = agent.inference.normalize(features)
 feasible_index, scores = getHumanScores(_F, w_opt, active_constraint_set)
 acc = len(feasible_index) / len(_F)
 print()

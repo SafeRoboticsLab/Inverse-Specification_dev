@@ -144,11 +144,13 @@ while obj.has_next():
     n_nds = len(obj.opt)
     CV = obj.opt.get('CV').min()
     print(f"gen[{n_gen}]: n_nds: {n_nds} CV: {CV}")
-    F = -obj.opt.get('F')
+    features = -obj.opt.get('F')
     if n_obj == 3:
-      fig = plot_result_3D(F, objective_names, axis_bound=None)
+      fig = plot_result_3D(features, objective_names, axis_bound=None)
     else:
-      fig = plot_result_pairwise(n_obj, F, objective_names, axis_bound=None)
+      fig = plot_result_pairwise(
+          n_obj, features, objective_names, axis_bound=None
+      )
     fig.supxlabel(str(n_gen), fontsize=20)
     fig.tight_layout()
     fig.savefig(os.path.join(fig_progress_folder, str(n_gen) + '.png'))
@@ -171,26 +173,24 @@ print("--> EXEC TIME: {}".format(time.time() - start_time))
 # region: finally obtain the result object
 res = obj.result()
 res_to_save = dict(X=res.X, F=res.F, pop=res.pop, opt=res.opt)
-# for key, value in res_to_save.items():
-#   print(key, ":", value)
 picklePath = os.path.join(out_folder, timestr + '.pkl')
 with open(picklePath, 'wb') as output:
   pickle.dump(res_to_save, output, pickle.HIGHEST_PROTOCOL)
 print(picklePath)
 
-F = -res.F
+features = -res.F
 fig = plot_result_pairwise(
-    n_obj, F, objective_names, axis_bound=None, n_col_default=5, subfigsz=4,
-    fsz=16, sz=20
+    n_obj, features, objective_names, axis_bound=None, n_col_default=5,
+    subfigsz=4, fsz=16, sz=20
 )
 fig.tight_layout()
 fig.savefig(os.path.join(fig_folder, 'obj_pairwise.png'))
 
 print("\npick the design in the optimal front that has maximal objective 1.")
-indices = np.argsort(F[:, 0])
-F = F[indices]
+indices = np.argsort(features[:, 0])
+features = features[indices]
 with np.printoptions(formatter={'float': '{: 2.2f}'.format}):
-  print(F[-1])
+  print(features[-1])
 
 print()
 X = res.X

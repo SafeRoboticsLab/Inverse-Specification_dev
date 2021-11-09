@@ -145,8 +145,8 @@ while obj.has_next():
     print(f"gen[{n_gen}]: n_nds: {n_nds}")
 
     # plot the whole population
-    F = -obj.pop.get('F')
-    fig = plot_single_objective(F, objective_names)
+    features = -obj.pop.get('F')
+    fig = plot_single_objective(features, objective_names)
     fig.supxlabel(str(n_gen), fontsize=20)
     fig.tight_layout()
     fig.savefig(os.path.join(fig_progress_folder, str(n_gen) + '.png'))
@@ -167,23 +167,23 @@ with open(picklePath, 'wb') as output:
   pickle.dump(res_to_save, output, pickle.HIGHEST_PROTOCOL)
 print(picklePath)
 
-F = -obj.pop.get('F').reshape(-1)
-X = obj.pop.get('X')
-fig = plot_single_objective(F, objective_names)
+features = -obj.pop.get('F').reshape(-1)
+component_values = obj.pop.get('X')
+fig = plot_single_objective(features, objective_names)
 fig.tight_layout()
 fig.savefig(os.path.join(fig_folder, 'obj_pairwise.png'))
 
-indices = np.argsort(F)
-F = F[indices]
+indices = np.argsort(features)
+features = features[indices]
 with np.printoptions(formatter={'float': '{: 2.2f}'.format}):
-  print(F)
+  print(features)
 
 input_names_dict = {}
 for i in range(len(problem.input_names)):
   input_names_dict['o' + str(i + 1)] = problem.input_names[i]
 fig = plot_result_pairwise(
-    len(problem.input_names), X, input_names_dict, axis_bound=None,
-    n_col_default=5, subfigsz=4, fsz=16, sz=20
+    len(problem.input_names), component_values, input_names_dict,
+    axis_bound=None, n_col_default=5, subfigsz=4, fsz=16, sz=20
 )
 fig.tight_layout()
 fig.savefig(os.path.join(fig_folder, 'input_pairwise.png'))
