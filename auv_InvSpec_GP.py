@@ -3,20 +3,44 @@
 # test #queries: python3 auv_InvSpec_GP.py -nw 25 -ng 100 -ip 25 -nq <number>
 # default: python3 auv_InvSpec_GP.py -nw 0 -ng 300 -ip 25 -nq 2 -mq 20 -n def
 
+import time
+import os
+import copy
 import numpy as np
 import matplotlib.pyplot as plt
 import argparse
 import pickle
-import time
-import os
 
 os.sys.path.append(os.path.join(os.getcwd(), 'src'))
 
 from auv.problem import AUVsim
-from utils import (
-    set_seed, save_obj, get_infeasible_designs, get_inference_output
+
+# design optimization module
+from pymoo.factory import (
+    get_termination, get_sampling, get_crossover, get_mutation
 )
+from pymoo.operators.mixed_variable_operator import (
+    MixedVariableSampling, MixedVariableMutation, MixedVariableCrossover
+)
+from pymoo.core.duplicate import DefaultDuplicateElimination
+from invspec.nsga_inv_spec import NSGAInvSpec
+
+# human simulator module
+from humansim.human_simulator import HumanSimulator
+from humansim.ranker.pair_ranker import PairRankerWeights
+
+# inverse specification module
+from funct_approx.config import GPConfig
+from invspec.inv_spec import InvSpec
+from invspec.querySelector.random_selector import RandomQuerySelector
+from invspec.querySelector.mutual_info_query_selector import (
+    MutualInfoQuerySelector
+)
+from invspec.inference.reward_GP import RewardGP
+
+# others
 from utils import (
+    set_seed, save_obj, get_infeasible_designs, get_inference_output,
     plot_result_3D, plot_result_pairwise, plot_output_2D, plot_output_3D
 )
 
@@ -42,10 +66,6 @@ parser.add_argument(
 parser.add_argument(
     "-ng", "--num_gen", help="#generation", default=100, type=int
 )
-parser.add_argument(
-    "-st", "--survival_type", help="survival type", default='stoc', type=str,
-    choices=['stoc', 'noisy_stoc', 'det', 'crowd']
-)
 
 # human simulator
 parser.add_argument(
@@ -55,8 +75,6 @@ parser.add_argument(
     "-ht", "--human_type", help="human type", default='range_hard', type=str,
     choices=['speed', 'range', 'range_hard']
 )
-# parser.add_argument("-hw", "--humanWeights",    help="human weights",
-#     default=[0.7, 0.1, 0.2],  nargs="*", type=float)
 
 # human interface
 parser.add_argument(
@@ -186,18 +204,6 @@ axis_bound[:, 1] = F_max
 # endregion
 
 # region: == Define Algorithm ==
-from pymoo.factory import (
-    get_termination, get_sampling, get_crossover, get_mutation
-)
-from invspec.nsga_invSpec import NSGA_INV_SPEC
-from pymoo.operators.mixed_variable_operator import (
-    MixedVariableSampling, MixedVariableMutation, MixedVariableCrossover
-)
-from pymoo.core.duplicate import DefaultDuplicateElimination
-# from pymoo.configuration import Configuration
-
-# Configuration.show_compile_hint = False
-
 sampling = MixedVariableSampling(
     problem.fparams.mask, {
         "real": get_sampling("real_random"),
@@ -219,7 +225,7 @@ mutation = MixedVariableMutation(
     }
 )
 
-algorithm = NSGA_INV_SPEC(
+algorithm = NSGAInvSpec(
     pop_size=args.pop_size, n_offsprings=args.pop_size, sampling=sampling,
     crossover=crossover, mutation=mutation,
     eliminate_duplicates=DefaultDuplicateElimination(epsilon=1e-3),
@@ -231,10 +237,7 @@ numGenTotal = args.num_gen
 termination = get_termination("n_gen", numGenTotal)
 # endregion
 
-# region: == Define Human Simulator
-from humansim.human_simulator import HumanSimulator
-from humansim.ranker.pair_ranker import PairRanker
-
+# region: == Define Human Simulator ==
 print("\n== Human Simulator ==")
 active_constraint_set = None
 if args.human_type == 'speed':
@@ -250,7 +253,7 @@ if active_constraint_set is not None:
   print(active_constraint_set)
 
 human = HumanSimulator(
-    ranker=PairRanker(
+    ranker=PairRankerWeights(
         w_opt, beta=args.beta_h, active_constraint_set=active_constraint_set,
         perfect_rank=True
     )
@@ -258,8 +261,6 @@ human = HumanSimulator(
 # endregion
 
 # region: == Define invSpec ==
-from funct_approx.config import GPConfig
-
 print("\n== InvSpec Construction ==")
 CONFIG = GPConfig(
     SEED=args.random_seed, MAX_QUERIES=args.max_queries,
@@ -269,13 +270,6 @@ CONFIG = GPConfig(
     NOISE_PROBIT=args.noise_probit
 )
 print(vars(CONFIG), '\n')
-
-from invspec.inv_spec import InvSpec
-from invspec.querySelector.random_selector import RandomQuerySelector
-from invspec.querySelector.mutual_info_query_selector import (
-    MutualInfoQuerySelector
-)
-from invspec.inference.reward_GP import RewardGP
 
 dimension = w_opt.shape[0]
 initialPoint = np.zeros(dimension)
@@ -299,8 +293,6 @@ else:
 # region: == Optimization ==
 print("\n== Optimization starts ...")
 # perform a copy of the algorithm to ensure reproducibility
-import copy
-
 obj = copy.deepcopy(algorithm)
 # obj.fitness_func = lambda x: 1.
 
@@ -330,16 +322,13 @@ while obj.has_next():
       fig = plot_result_3D(F, objective_names, axis_bound)
     else:
       fig = plot_result_pairwise(n_obj, F, objective_names, axis_bound)
-    # fig.suptitle(args.survival_type, fontsize=20)
     fig.supxlabel(
-        '{}-G{}: {} cumulative queries'.format(
-            args.survival_type, n_gen, n_acc_fb
-        ), fontsize=20
+        'G{}: {} cumulative queries'.format(n_gen, n_acc_fb), fontsize=20
     )
     fig.tight_layout()
-    figProFolder = os.path.join(figFolder, 'progress')
-    os.makedirs(figProFolder, exist_ok=True)
-    fig.savefig(os.path.join(figProFolder, str(n_gen) + '.png'))
+    fig_progress_folder = os.path.join(figFolder, 'progress')
+    os.makedirs(fig_progress_folder, exist_ok=True)
+    fig.savefig(os.path.join(fig_progress_folder, str(n_gen) + '.png'))
     plt.close()
 
   #= interact with human
@@ -371,7 +360,8 @@ while obj.has_next():
       action = np.array([]).reshape(1, 0)
       for idx in indices:
         Ds = F[idx, :]
-        fb = human.get_ranking(Ds)
+        query = dict(F=Ds, X=None)
+        fb = human.get_ranking(query)
         if obj.n_gen == args.num_warmup and args.num_warmup != 0:
           print(Ds, fb)
 

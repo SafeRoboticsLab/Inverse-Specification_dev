@@ -3,16 +3,39 @@
 # test #queries: python3 auv_InvSpec_NN.py -nw 25 -ng 100 -ip 25 -nq <number>
 # default: python3 auv_InvSpec_NN.py -nw 0 -ng 300 -ip 25 -nq 2 -mq 20 -n def
 
+import time
+import os
+import copy
 import numpy as np
 import matplotlib.pyplot as plt
 import argparse
 import pickle
-import time
-import os
 
 os.sys.path.append(os.path.join(os.getcwd(), 'src'))
 
 from auv.problem import AUVsim
+
+# design optimization module
+from pymoo.factory import (
+    get_termination, get_sampling, get_crossover, get_mutation
+)
+from pymoo.operators.mixed_variable_operator import (
+    MixedVariableSampling, MixedVariableMutation, MixedVariableCrossover
+)
+from pymoo.core.duplicate import DefaultDuplicateElimination
+from invspec.nsga_inv_spec import NSGAInvSpec
+
+# human simulator module
+from humansim.human_simulator import HumanSimulator
+from humansim.ranker.pair_ranker import PairRankerWeights
+
+# inverse specification module
+from funct_approx.config import NNConfig
+from invspec.inv_spec import InvSpec
+from invspec.querySelector.random_selector import RandomQuerySelector
+from invspec.inference.reward_NN import RewardNN
+
+# others
 from utils import (
     set_seed, save_obj, get_infeasible_designs, get_inference_output
 )
@@ -187,17 +210,6 @@ axis_bound[:, 1] = F_max
 # endregion
 
 # region: == Define Algorithm ==
-from pymoo.factory import (
-    get_termination, get_sampling, get_crossover, get_mutation
-)
-from invspec.nsga_invSpec import NSGA_INV_SPEC
-from pymoo.operators.mixed_variable_operator import (
-    MixedVariableSampling, MixedVariableMutation, MixedVariableCrossover
-)
-from pymoo.core.duplicate import DefaultDuplicateElimination
-# from pymoo.configuration import Configuration
-# Configuration.show_compile_hint = False
-
 sampling = MixedVariableSampling(
     problem.fparams.mask, {
         "real": get_sampling("real_random"),
@@ -219,7 +231,7 @@ mutation = MixedVariableMutation(
     }
 )
 
-algorithm = NSGA_INV_SPEC(
+algorithm = NSGAInvSpec(
     pop_size=args.pop_size, n_offsprings=args.pop_size, sampling=sampling,
     crossover=crossover, mutation=mutation,
     eliminate_duplicates=DefaultDuplicateElimination(epsilon=1e-3),
@@ -231,10 +243,7 @@ numGenTotal = args.num_gen
 termination = get_termination("n_gen", numGenTotal)
 # endregion
 
-# region: == Define Human Simulator
-from humansim.human_simulator import HumanSimulator
-from humansim.ranker.pair_ranker import PairRanker
-
+# region: == Define Human Simulator ==
 print("\n== Human Simulator ==")
 active_constraint_set = None
 if args.human_type == 'speed':
@@ -250,7 +259,7 @@ if active_constraint_set is not None:
   print(active_constraint_set)
 
 human = HumanSimulator(
-    ranker=PairRanker(
+    ranker=PairRankerWeights(
         w_opt, beta=args.beta_h, active_constraint_set=active_constraint_set,
         perfect_rank=True
     )
@@ -258,8 +267,6 @@ human = HumanSimulator(
 # endregion
 
 # region: == Define invSpec ==
-from funct_approx.config import NNConfig
-
 print("\n== InvSpec Construction ==")
 CONFIG = NNConfig(
     SEED=args.random_seed, MAX_QUERIES=args.max_queries,
@@ -269,10 +276,6 @@ CONFIG = NNConfig(
     LR=args.learning_rate, LR_PERIOD=args.lr_period, TRADEOFF=args.tradeoff
 )
 print(vars(CONFIG), '\n')
-
-from invspec.inv_spec import InvSpec
-from invspec.querySelector.random_selector import RandomQuerySelector
-from invspec.inference.reward_NN import RewardNN
 
 dimension = w_opt.shape[0]
 
@@ -287,10 +290,7 @@ agent = InvSpec(
 # region: == Optimization ==
 print("\n== Optimization starts ...")
 # perform a copy of the algorithm to ensure reproducibility
-import copy
-
 obj = copy.deepcopy(algorithm)
-# obj.fitness_func = agent.inference
 
 # let the algorithm know what problem we are intending to solve and provide
 # other attributes
@@ -313,11 +313,11 @@ while obj.has_next():
     n_nds = len(obj.opt)
     CV = obj.opt.get('CV').min()
     print(f"gen[{n_gen}]: n_nds: {n_nds} CV: {CV}")
-    F = -obj.opt.get('F')
+    features = -obj.opt.get('F')
     if n_obj == 3:
-      fig = plot_result_3D(F, objective_names, axis_bound)
+      fig = plot_result_3D(features, objective_names, axis_bound)
     else:
-      fig = plot_result_pairwise(n_obj, F, objective_names, axis_bound)
+      fig = plot_result_pairwise(n_obj, features, objective_names, axis_bound)
     # fig.suptitle(args.survival_type, fontsize=20)
     fig.supxlabel(
         '{}-G{}: {} cumulative queries'.format(
@@ -325,9 +325,9 @@ while obj.has_next():
         ), fontsize=20
     )
     fig.tight_layout()
-    figProFolder = os.path.join(figFolder, 'progress')
-    os.makedirs(figProFolder, exist_ok=True)
-    fig.savefig(os.path.join(figProFolder, str(n_gen) + '.png'))
+    fig_progress_folder = os.path.join(figFolder, 'progress')
+    os.makedirs(fig_progress_folder, exist_ok=True)
+    fig.savefig(os.path.join(fig_progress_folder, str(n_gen) + '.png'))
     plt.close()
 
   #= interact with human
@@ -337,7 +337,7 @@ while obj.has_next():
     time2update = (obj.n_gen - args.num_warmup) % args.interact_period == 0
   if time2update and (obj.n_gen < numGenTotal):
     print("\nAt generation {}".format(obj.n_gen))
-    F = agent.normalize(-obj.opt.get('F'))
+    features = agent.normalize(-obj.opt.get('F'))
     n_acc_fb = agent.get_number_feedback()
 
     # if obj.n_gen == args.num_warmup and args.num_warmup != 0:
@@ -358,8 +358,9 @@ while obj.has_next():
       # 2. get feedback from humans
       action = np.array([]).reshape(1, 0)
       for idx in indices:
-        Ds = F[idx, :]
-        fb = human.get_ranking(Ds)
+        Ds = features[idx, :]
+        query = dict(F=Ds, X=None)
+        fb = human.get_ranking(query)
         if obj.n_gen == args.num_warmup and args.num_warmup != 0:
           print(Ds, fb)
 
@@ -390,22 +391,21 @@ while obj.has_next():
       updateTimes += 1
 
       # 4. store and report
-      indices = np.argsort(F[:, 0])
-      F = F[indices]
+      indices = np.argsort(features[:, 0])
+      features = features[indices]
       save_obj(agent, os.path.join(agentFolder, 'agent' + str(updateTimes)))
-      feasible_index, scores = getHumanScores(F, w_opt, active_constraint_set)
-      acc = len(feasible_index) / len(F)
+      feasible_index, scores = getHumanScores(
+          features, w_opt, active_constraint_set
+      )
+      acc = len(feasible_index) / len(features)
       print('Feasible ratio: {:.3f}'.format(acc))
       with np.printoptions(formatter={'float': '{: .3f}'.format}):
-        print(F)
+        print(features)
         print(scores)
       print()
     else:
       print("Exceed maximal number of queries!", end=' ')
       print("Accumulated {:d} feedback".format(n_acc_fb))
-
-    # report(agent, F, w_opt, showRankNumber=10,
-    #     active_constraint_set=active_constraint_set)
 
 end_time = time.time()
 print("It took {:.1f} seconds".format(end_time - start_time))
@@ -422,17 +422,17 @@ picklePath = os.path.join(outFolder, timestr + 'res.pkl')
 with open(picklePath, 'wb') as output:
   pickle.dump(res, output, pickle.HIGHEST_PROTOCOL)
 
-F = -res.F
+features = -res.F
 fig = plot_result_pairwise(
-    n_obj, F, objective_names, axis_bound,
+    n_obj, features, objective_names, axis_bound,
     active_constraint_set=active_constraint_set
 )
 fig.tight_layout()
 fig.savefig(os.path.join(figFolder, 'objPairwise.png'))
 
-indices = np.argsort(F[:, 0])
-F = F[indices]
-_F = agent.inference.normalize(F)
+indices = np.argsort(features[:, 0])
+features = features[indices]
+_F = agent.inference.normalize(features)
 feasible_index, scores = getHumanScores(_F, w_opt, active_constraint_set)
 acc = len(feasible_index) / len(_F)
 print()

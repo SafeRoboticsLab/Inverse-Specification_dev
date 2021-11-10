@@ -1,10 +1,12 @@
 **/__pycache__
-**/.DS_store
+**/.DS_Store
 **/tempStoreSim
 **/scratch
 .vscode/
+swri/template/*
 
 # 
 *.out
-SwRI/flight-dynamics-model/
-SwRI/new_fdm
+swri/flight-dynamics-model/
+swri/new_fdm
+tmp.py

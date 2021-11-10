@@ -1,0 +1,105 @@
+function [Thrust,CThrust,Torque,Power, RPM] = Prop_Fun(Prop,Diameter, Motor_KV,Battery_Volts,plotts,intp, Prop_Folder)
+%Help for reading in technique at :https://itectec.com/matlab/matlab-how-to-extract-data-from-a-dat-file-contain-multiple-tables/
+
+%% Function to be saved in folder with propeller performance data
+%Get current/main folder
+die=pwd;
+cd(Prop_Folder);
+filename = dir(strcat('*',Prop,'.dat'));%Find prop data file from name
+
+%Max theortical RPM
+Max_RPM = Motor_KV*Battery_Volts;
+
+%% Read in .dat propeller performance data
+for q=1:length(filename)
+    
+    [out,rpm]=Dat_Read(filename(q).name);
+end
+%Only output relevant data per motor battery combo
+[~,id] = min(abs(rpm-max(Max_RPM)));
+rpm=rpm(1:id+1);
+
+%% Outputs
+%Convert units
+for qq=1:length(rpm)
+    Thrust(qq) = out{qq}(1,8).*4.44822;%N
+    CThrust(qq) = out{qq}(1,4).*1.225*(rpm(qq)/60)^2*(Diameter*0.0254)^4;
+    Torque(qq) = out{qq}(1,7).*0.11298482933333;%Nm
+    Power(qq) = out{qq}(1,5).*1.225*(rpm(qq)/60)^3*(Diameter*0.0254)^5;%Watts
+end
+
+%Set zero state values
+rpm=[0,rpm];
+Thrust = [0,Thrust];
+CThrust = [0, CThrust];
+Torque = [0,Torque];
+Power = [0,Power];
+RPM_Fit = linspace(0,Max_RPM, 1000);
+
+RPM = linspace(min(rpm),max(rpm),intp);
+%Interpolation
+Thrust = interp1(rpm, Thrust,RPM);
+CThrust = interp1(rpm, CThrust,RPM);
+Torque = interp1(rpm, Torque,RPM);
+Power = interp1(rpm, Power,RPM);
+
+%Perform fits
+% Fit_Thrust = polyfit(rpm,Thrust,2);
+% Fit_Torque = polyfit(rpm,Torque,3);
+% Fit_Power = polyfit(rpm,Power,3);
+%
+% Thrust_Fit = polyval(Fit_Thrust,RPM_Fit);
+% Torque_Fit = polyval(Fit_Torque,RPM_Fit);
+% Power_Fit = polyval(Fit_Power,RPM_Fit);
+
+%% Plot some static state information if desired
+if plotts==1
+    
+    figure('Name', strjoin({'Static Thrust of',Prop},{' '}))%,'Units','inches','PaperUnits','inches', 'PaperSize',[8,6],'InnerPosition',[0,0,8,6],'PaperPosition',[0,0,8,6])
+    plot(rpm,Thrust, 'b.', 'MarkerSize', 20)
+    xlabel('Rotations per minute (RPM)')
+    ylabel('Static thrust (N)')
+    set(gca, 'FontName', 'Arial', 'FontSize',16,'YDir','normal','FontWeight','Bold')
+    hold on
+    grid on
+    plot([Max_RPM,Max_RPM],[0,out{qq}(1,8).*4.44822],'r','LineWidth', 2)
+    hold on
+    plot(RPM_Fit, interp1(rpm,Thrust,RPM_Fit))
+    Max_Static_Thrust = interp1(rpm,Thrust,Max_RPM);
+    title(strjoin({'Max Static Thrust for Combo = ', num2str(Max_Static_Thrust),' N'}))
+    hold off
+    
+    figure('Name', strjoin({'Static Torque of',Prop},{' '}))%,'Units','inches','PaperUnits','inches', 'PaperSize',[8,6],'InnerPosition',[0,0,8,6],'PaperPosition',[0,0,8,6])
+    plot(rpm,Torque, 'b.', 'MarkerSize', 20)
+    xlabel('Rotations per minute (RPM)')
+    ylabel('Torque (Nm)')
+    set(gca, 'FontName', 'Arial', 'FontSize',16,'YDir','normal','FontWeight','Bold')
+    hold on
+    grid on
+    % plot(RPM_Fit, Torque_Fit)
+    plot(RPM_Fit, interp1(rpm,Torque,RPM_Fit))
+    hold off
+    
+    figure('Name', strjoin({'Static Power of',Prop},{' '}))%,'Units','inches','PaperUnits','inches', 'PaperSize',[8,6],'InnerPosition',[0,0,8,6],'PaperPosition',[0,0,8,6])
+    plot(rpm,Power, 'b.', 'MarkerSize', 20)
+    xlabel('Rotations per minute (RPM)')
+    ylabel('Power (W)')
+    set(gca, 'FontName', 'Arial', 'FontSize',16,'YDir','normal','FontWeight','Bold')
+    hold on
+    grid on
+    plot(RPM_Fit, interp1(rpm,Power,RPM_Fit))
+    hold off
+    
+    figure('Name', strjoin({'Power Vs. Torque for',Prop},{' '}))%,'Units','inches','PaperUnits','inches', 'PaperSize',[8,6],'InnerPosition',[0,0,8,6],'PaperPosition',[0,0,8,6])
+    plot(Torque,Power, 'b.', 'MarkerSize', 20)
+    xlabel('Torque (Nm)')
+    ylabel('Power (W)')
+    set(gca, 'FontName', 'Arial', 'FontSize',16,'YDir','normal','FontWeight','Bold')
+    grid on
+    hold off
+end
+
+
+
+cd(die)%Return to orginal directory
+

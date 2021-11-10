@@ -191,12 +191,12 @@ def get_infeasible_designs(design_feature, active_constraint_set):
     for i in range(num_design):
       flag = False
       for (feature_idx, threshold) in active_constraint_set:
-        upperBound = False
+        thr_as_upper_bound = False
         if feature_idx[0] == '-':
           feature_idx = int(feature_idx[1:])
-          upperBound = True
+          thr_as_upper_bound = True
         feature_idx = int(feature_idx)
-        if upperBound:
+        if thr_as_upper_bound:
           if design_feature[i, feature_idx] > threshold:
             flag = True
             break
@@ -401,6 +401,15 @@ def plot_mean_conf_interval(
 
 
 # PLOT GA POPULATION BY OBJECTIVES
+def plot_single_objective(F, objective_names, subfigsz=4, fsz=16, sz=20):
+  F = F.reshape(-1)
+  fig, ax = plt.subplots(1, 1, figsize=(subfigsz, subfigsz))
+  ax.scatter(np.arange(F.shape[0]), F, c='b', s=sz, alpha=0.5)
+  ax.set_ylabel(objective_names['o1'], fontsize=fsz)
+  ax.set_xlabel("Design Index", fontsize=fsz)
+  return fig
+
+
 def plot_result_pairwise(
     n_obj, F, objective_names, axis_bound, n_col_default=5, subfigsz=4, fsz=16,
     sz=20, lw=3, active_constraint_set=None
@@ -454,8 +463,9 @@ def plot_result_pairwise(
       ax.scatter(F[:, i], F[:, j], c='b', s=sz, alpha=0.5)
       ax.set_xlabel(objective_names['o' + str(i + 1)], fontsize=fsz)
       ax.set_ylabel(objective_names['o' + str(j + 1)], fontsize=fsz)
-      ax.set_xlim(axis_bound[i, 0], axis_bound[i, 1])
-      ax.set_ylim(axis_bound[j, 0], axis_bound[j, 1])
+      if axis_bound is not None:
+        ax.set_xlim(axis_bound[i, 0], axis_bound[i, 1])
+        ax.set_ylim(axis_bound[j, 0], axis_bound[j, 1])
       idx += 1
   return fig
 

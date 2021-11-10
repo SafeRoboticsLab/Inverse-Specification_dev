@@ -3,19 +3,32 @@
 # example: python3 auv_NSGA2.py -p p1 -ng 200 -psz 100
 # example: python3 auv_NSGA2.py -cg 1
 
+import time
+import os
+import copy
 import numpy as np
 import matplotlib.pyplot as plt
 import argparse
 import pickle
-import time
-
-timestr = time.strftime("%m-%d-%H_%M")
-import os
 
 os.sys.path.append(os.path.join(os.getcwd(), 'src'))
 
 from auv.problem import AUVsim
+
+# design optimization module
+from pymoo.factory import (
+    get_termination, get_sampling, get_crossover, get_mutation
+)
+from pymoo.algorithms.moo.nsga2 import NSGA2
+from pymoo.optimize import minimize
+from pymoo.operators.mixed_variable_operator import (
+    MixedVariableSampling, MixedVariableMutation, MixedVariableCrossover
+)
+
+# others
 from utils import set_seed, plot_result_3D, plot_result_pairwise
+
+timestr = time.strftime("%m-%d-%H_%M")
 
 # region: == ARGS ==
 parser = argparse.ArgumentParser()
@@ -67,17 +80,6 @@ axis_bound[:, 1] = F_max
 # endregion
 
 # region: == Define Algorithm ==
-from pymoo.factory import (
-    get_termination, get_sampling, get_crossover, get_mutation
-)
-from pymoo.algorithms.moo.nsga2 import NSGA2
-from pymoo.optimize import minimize
-from pymoo.operators.mixed_variable_operator import (
-    MixedVariableSampling, MixedVariableMutation, MixedVariableCrossover
-)
-# from pymoo.configuration import Configuration
-# Configuration.show_compile_hint = False
-
 sampling = MixedVariableSampling(
     problem.fparams.mask, {
         "real": get_sampling("real_random"),
@@ -115,7 +117,6 @@ termination = get_termination("n_gen", args.num_gen)
 print("\n== Optimization starts ...")
 if args.optimizer == 'oo':
   # perform a copy of the algorithm to ensure reproducibility
-  import copy
   obj = copy.deepcopy(algorithm)
 
   # let the algorithm know what problem we are intending to solve and provide
@@ -144,9 +145,9 @@ if args.optimizer == 'oo':
         fig = plot_result_pairwise(n_obj, F, objective_names, axis_bound)
       fig.supxlabel(str(n_gen), fontsize=20)
       fig.tight_layout()
-      figProFolder = os.path.join(figFolder, 'progress')
-      os.makedirs(figProFolder, exist_ok=True)
-      fig.savefig(os.path.join(figProFolder, str(n_gen) + '.png'))
+      fig_progress_folder = os.path.join(figFolder, 'progress')
+      os.makedirs(fig_progress_folder, exist_ok=True)
+      fig.savefig(os.path.join(fig_progress_folder, str(n_gen) + '.png'))
       plt.close()
       # idx = np.argmax(F[:, 0])
       # for i, tmp in enumerate(F[idx]):

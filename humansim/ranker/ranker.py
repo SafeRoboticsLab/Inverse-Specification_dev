@@ -10,12 +10,14 @@ class Ranker(ABC):
     super().__init__()
 
   def get_ranking(self, query, **kwargs):
-    """
-    Gets the preference of designs or returns "cannot distinguish".
+    """Gets the preference of designs or returns "cannot distinguish".
 
     Args:
-        query (np.array, (#designs x #features)): designs represented by
-            their features (objectives defined in `problem`)
+        query (dict):
+            'F' (np.ndarray, (#designs x #features)): designs represented by
+                their features (objectives defined in `problem`).
+            'X' (np.ndarray, (#designs x #components)): designs represented by
+                their component values (inputs defined in `problem`).
     """
     return self._get_ranking(query, **kwargs)
 
