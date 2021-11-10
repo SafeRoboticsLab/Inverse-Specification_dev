@@ -1,6 +1,6 @@
 # Please contact the author(s) of this library if you have any questions.
 # Authors: Kai-Chieh Hsu ( kaichieh@princeton.edu )
-# example: python3 swri_invspec_gp.py -cg 1 -psz 10 -ng 100 -n def
+# example: python3 swri_invspec_gp.py -cg 5 -psz 10 -ng 50 -n def -nq 5
 
 import time
 import os
