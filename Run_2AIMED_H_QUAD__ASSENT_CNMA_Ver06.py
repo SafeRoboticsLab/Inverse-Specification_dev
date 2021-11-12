@@ -40,27 +40,27 @@ from flight_dynamics import SWRIFlightDynamics
 # In[]:
 # In[]:
 
-sys.path.append("/scratch/gpfs/pterway/HSPICE/HSPICE/MitCircuits/") # used for runcommand ffile - update accordingly
-sys.path.append("/scratch/gpfs/pterway/HSPICE/HSPICE/MitCircuits/nsverify") # Uses for MILP formulation - update accordingly
-sys.path.append("/scratch/gpfs/pterway/HSPICE/HSPICE/myMitCircuits/Tic-Tac-Toe-Gym_Environment-master/gym_circuit/gym_circuit/envs/code/env_code/environments/")
-sys.path.append("/scratch/gpfs/pterway/HSPICE/HSPICE/myMitCircuits/Tic-Tac-Toe-Gym_Environment-master/gym_circuit/gym_circuit/envs/nsverify/")
-sys.path.append("/scratch/gpfs/pterway/HSPICE/HSPICEmyMitCircuits/Tic-Tac-Toe-Gym_Environment-master/gym_circuit/gym_circuit/")
-sys.path.append("/scratch/gpfs/pterway/HSPICE/HSPICE/myMitCircuits/Tic-Tac-Toe-Gym_Environment-master/gym_circuit/")
-sys.path.append("/scratch/gpfs/pterway/HSPICE/HSPICE/myMitCircuits/Tic-Tac-Toe-Gym_Environment-master")
-sys.path.append("/scratch/gpfs/pterway/HSPICE/HSPICE/MitCircuits/")
-sys.path.append("/scratch/gpfs/pterway/HSPICE/HSPICE/MitCircuits/nsverify")
-sys.path.append("/della/scratch/gpfs/pterway/HSPICE/HSPICE/MitCircuits")
-sys.path.append('/scratch/gpfs/pterway/HSPICE/HSPICE/MitCircuits/CNMAWithBO')
-sys.path.append('sratch/gpfs/pterway/HSPICE/GAComponentSelection/GAComponentSelectionMitArch/GACompSelSetup')
-# sys.path.append("/scratch/gpfs/pterway/HSPICE/ThreeStage/MarabouInvDesign/Marabou")
-# sys.path.append("/scratch/gpfs/pterway/HSPICE/ThreeStage/MarabouInvDesign/NNet")
-sys.path.append("/scratch/gpfs/pterway/HSPICE/ThreeStage/MarabouInvDesign/NNet/")
-sys.path.append("/scratch/gpfs/pterway/HSPICE/ThreeStage/MarabouInvDesign/")
-sys.path.append("/della/scratch/gpfs/pterway/HSPICE/HSPICE/ThreeStage/CNMAOnOriginalCircuit/")
-sys.path.append("/scratch/gpfs/pterway/HSPICE/CNMAOnOriginalCircuit/")
-sys.path.append("/scratch/gpfs/pterway/perspectaTestsVer2/perspectaV1/myCodesV9Della/")
-sys.path.append("/scratch/gpfs/pterway/perspectaProject/myCodesV9Della/")
-sys.path.append("/scratch/gpfs/pterway/perspectaTestsVer2/perspectaV1/myCodesV9Della/project2BOTOrchBAsedVer01/dexcelMOOVer02")
+# sys.path.append("/scratch/gpfs/pterway/HSPICE/HSPICE/MitCircuits/") # used for runcommand ffile - update accordingly
+# sys.path.append("/scratch/gpfs/pterway/HSPICE/HSPICE/MitCircuits/nsverify") # Uses for MILP formulation - update accordingly
+# sys.path.append("/scratch/gpfs/pterway/HSPICE/HSPICE/myMitCircuits/Tic-Tac-Toe-Gym_Environment-master/gym_circuit/gym_circuit/envs/code/env_code/environments/")
+# sys.path.append("/scratch/gpfs/pterway/HSPICE/HSPICE/myMitCircuits/Tic-Tac-Toe-Gym_Environment-master/gym_circuit/gym_circuit/envs/nsverify/")
+# sys.path.append("/scratch/gpfs/pterway/HSPICE/HSPICEmyMitCircuits/Tic-Tac-Toe-Gym_Environment-master/gym_circuit/gym_circuit/")
+# sys.path.append("/scratch/gpfs/pterway/HSPICE/HSPICE/myMitCircuits/Tic-Tac-Toe-Gym_Environment-master/gym_circuit/")
+# sys.path.append("/scratch/gpfs/pterway/HSPICE/HSPICE/myMitCircuits/Tic-Tac-Toe-Gym_Environment-master")
+# sys.path.append("/scratch/gpfs/pterway/HSPICE/HSPICE/MitCircuits/")
+# sys.path.append("/scratch/gpfs/pterway/HSPICE/HSPICE/MitCircuits/nsverify")
+# sys.path.append("/della/scratch/gpfs/pterway/HSPICE/HSPICE/MitCircuits")
+# sys.path.append('/scratch/gpfs/pterway/HSPICE/HSPICE/MitCircuits/CNMAWithBO')
+# sys.path.append('sratch/gpfs/pterway/HSPICE/GAComponentSelection/GAComponentSelectionMitArch/GACompSelSetup')
+# # sys.path.append("/scratch/gpfs/pterway/HSPICE/ThreeStage/MarabouInvDesign/Marabou")
+# # sys.path.append("/scratch/gpfs/pterway/HSPICE/ThreeStage/MarabouInvDesign/NNet")
+# sys.path.append("/scratch/gpfs/pterway/HSPICE/ThreeStage/MarabouInvDesign/NNet/")
+# sys.path.append("/scratch/gpfs/pterway/HSPICE/ThreeStage/MarabouInvDesign/")
+# sys.path.append("/della/scratch/gpfs/pterway/HSPICE/HSPICE/ThreeStage/CNMAOnOriginalCircuit/")
+# sys.path.append("/scratch/gpfs/pterway/HSPICE/CNMAOnOriginalCircuit/")
+# sys.path.append("/scratch/gpfs/pterway/perspectaTestsVer2/perspectaV1/myCodesV9Della/")
+# sys.path.append("/scratch/gpfs/pterway/perspectaProject/myCodesV9Della/")
+# sys.path.append("/scratch/gpfs/pterway/perspectaTestsVer2/perspectaV1/myCodesV9Della/project2BOTOrchBAsedVer01/dexcelMOOVer02")
 
 # In[Load libraries]:
 
@@ -72,27 +72,27 @@ import sobol_seq
 from sklearn.preprocessing import MinMaxScaler
 
 # In[Add paths to system]"
-sys.path.append("/tigress/pterway/perspectaTests/perspectaV1/myCodesV2/myCodes") # used for runcommand ffile - update accordingly
-sys.path.append("/tigress/pterway/perspectaTests/perspectaV1/myCodesV2/myCodes/nsverify") # Uses for MILP formulation - update accordingly
-sys.path.append("/scratch/gpfs/pterway/HSPICE/HSPICE/MitCircuits/") # used for runcommand ffile - update accordingly
-sys.path.append("/scratch/gpfs/pterway/HSPICE/HSPICE/MitCircuits/nsverify") # Uses for MILP formulation - update accordingly
-sys.path.append("/scratch/gpfs/pterway/HSPICE/HSPICE/myMitCircuits/Tic-Tac-Toe-Gym_Environment-master/gym_circuit/gym_circuit/envs/code/env_code/environments/")
-sys.path.append("/scratch/gpfs/pterway/HSPICE/HSPICE/myMitCircuits/Tic-Tac-Toe-Gym_Environment-master/gym_circuit/gym_circuit/envs/nsverify/")
-sys.path.append("/scratch/gpfs/pterway/HSPICE/HSPICEmyMitCircuits/Tic-Tac-Toe-Gym_Environment-master/gym_circuit/gym_circuit/")
-sys.path.append("/scratch/gpfs/pterway/HSPICE/HSPICE/myMitCircuits/Tic-Tac-Toe-Gym_Environment-master/gym_circuit/")
-sys.path.append("/scratch/gpfs/pterway/HSPICE/HSPICE/myMitCircuits/Tic-Tac-Toe-Gym_Environment-master")
-sys.path.append("/scratch/gpfs/pterway/HSPICE/HSPICE/MitCircuits/")
-sys.path.append("/scratch/gpfs/pterway/HSPICE/HSPICE/MitCircuits/nsverify")
-sys.path.append("/della/scratch/gpfs/pterway/HSPICE/HSPICE/MitCircuits")
-sys.path.append('/scratch/gpfs/pterway/HSPICE/HSPICE/MitCircuits/CNMAWithBO')
-sys.path.append('sratch/gpfs/pterway/HSPICE/GAComponentSelection/GAComponentSelectionMitArch/GACompSelSetup')
-# sys.path.append("/scratch/gpfs/pterway/HSPICE/ThreeStage/MarabouInvDesign/Marabou")
-sys.path.append("/scratch/gpfs/pterway/HSPICE/ThreeStage/MarabouInvDesign/NNet")
-sys.path.append("/scratch/gpfs/pterway/HSPICE/ThreeStage/MarabouInvDesign/NNet/")
-sys.path.append("/scratch/gpfs/pterway/HSPICE/ThreeStage/MarabouInvDesign/")
-sys.path.append("/della/scratch/gpfs/pterway/HSPICE/HSPICE/ThreeStage/CNMAOnOriginalCircuit/")
-sys.path.append("/scratch/gpfs/pterway/HSPICE/CNMAOnOriginalCircuit/")
-sys.path.append('/scratch/gpfs/pterway/perspectaTestsVer2/perspectaV1/myCodesV9Della/MarabouPyJune16th2021/Marabou')
+# sys.path.append("/tigress/pterway/perspectaTests/perspectaV1/myCodesV2/myCodes") # used for runcommand ffile - update accordingly
+# sys.path.append("/tigress/pterway/perspectaTests/perspectaV1/myCodesV2/myCodes/nsverify") # Uses for MILP formulation - update accordingly
+# sys.path.append("/scratch/gpfs/pterway/HSPICE/HSPICE/MitCircuits/") # used for runcommand ffile - update accordingly
+# sys.path.append("/scratch/gpfs/pterway/HSPICE/HSPICE/MitCircuits/nsverify") # Uses for MILP formulation - update accordingly
+# sys.path.append("/scratch/gpfs/pterway/HSPICE/HSPICE/myMitCircuits/Tic-Tac-Toe-Gym_Environment-master/gym_circuit/gym_circuit/envs/code/env_code/environments/")
+# sys.path.append("/scratch/gpfs/pterway/HSPICE/HSPICE/myMitCircuits/Tic-Tac-Toe-Gym_Environment-master/gym_circuit/gym_circuit/envs/nsverify/")
+# sys.path.append("/scratch/gpfs/pterway/HSPICE/HSPICEmyMitCircuits/Tic-Tac-Toe-Gym_Environment-master/gym_circuit/gym_circuit/")
+# sys.path.append("/scratch/gpfs/pterway/HSPICE/HSPICE/myMitCircuits/Tic-Tac-Toe-Gym_Environment-master/gym_circuit/")
+# sys.path.append("/scratch/gpfs/pterway/HSPICE/HSPICE/myMitCircuits/Tic-Tac-Toe-Gym_Environment-master")
+# sys.path.append("/scratch/gpfs/pterway/HSPICE/HSPICE/MitCircuits/")
+# sys.path.append("/scratch/gpfs/pterway/HSPICE/HSPICE/MitCircuits/nsverify")
+# sys.path.append("/della/scratch/gpfs/pterway/HSPICE/HSPICE/MitCircuits")
+# sys.path.append('/scratch/gpfs/pterway/HSPICE/HSPICE/MitCircuits/CNMAWithBO')
+# sys.path.append('sratch/gpfs/pterway/HSPICE/GAComponentSelection/GAComponentSelectionMitArch/GACompSelSetup')
+# # sys.path.append("/scratch/gpfs/pterway/HSPICE/ThreeStage/MarabouInvDesign/Marabou")
+# sys.path.append("/scratch/gpfs/pterway/HSPICE/ThreeStage/MarabouInvDesign/NNet")
+# sys.path.append("/scratch/gpfs/pterway/HSPICE/ThreeStage/MarabouInvDesign/NNet/")
+# sys.path.append("/scratch/gpfs/pterway/HSPICE/ThreeStage/MarabouInvDesign/")
+# sys.path.append("/della/scratch/gpfs/pterway/HSPICE/HSPICE/ThreeStage/CNMAOnOriginalCircuit/")
+# sys.path.append("/scratch/gpfs/pterway/HSPICE/CNMAOnOriginalCircuit/")
+# sys.path.append('/scratch/gpfs/pterway/perspectaTestsVer2/perspectaV1/myCodesV9Della/MarabouPyJune16th2021/Marabou')
 
 
 # In[Perspecta]:
@@ -108,7 +108,7 @@ from gurobipy import *
 from keras.models import Sequential
 from keras.layers import Dense
 from keras.layers import Activation, Dense
-from generateSobolSamplesAroundNominal import *
+# from generateSobolSamplesAroundNominal import *
 from sklearn.neural_network import MLPRegressor
 from sklearn.preprocessing import MinMaxScaler
 # from getMissDataMissingV1.py import *
