@@ -242,6 +242,7 @@ def main(config_file, config_dict):
   updateTimes = 0
   start_time = time.time()
   designs_collection = {}
+  collect_undistinguished = False
   while obj.has_next():
     #= perform an iteration of the algorithm
     obj.next()
@@ -294,6 +295,7 @@ def main(config_file, config_dict):
         indices = agent.get_query(obj.opt, n_ask)
 
         # 2. get feedback from humans
+        n_fb = 0
         for idx in indices:
           query_features = features[idx, :]
           query_components = components[idx, :]
@@ -309,18 +311,22 @@ def main(config_file, config_dict):
             q_2 = (query_components[1:2, :], np.array([]).reshape(1, 0))
 
           if fb_raw != 2:
+            n_fb += 1
             if fb_raw == 0:
               fb_invspec = 1
             elif fb_raw == 1:
               fb_invspec = -1
             agent.store_feedback(q_1, q_2, fb_invspec)
+          elif collect_undistinguished:
+            n_fb += 1
+            eps = np.random.uniform()
+            fb_invspec = 1 if eps > 0.5 else -1
+            agent.store_feedback(q_1, q_2, fb_invspec)
 
-        n_fb = len(indices)
         n_acc_fb = agent.get_number_feedback()
         print(
-            "Collect {:d} feedback, Accumulated {:d} feedback".format(
-                n_fb, n_acc_fb
-            )
+            "Collect {:d} feedback out of {:d} queries".format(n_fb, n_ask),
+            "Accumulated {:d} feedback".format(n_acc_fb)
         )
 
         # 3. update fitness function
