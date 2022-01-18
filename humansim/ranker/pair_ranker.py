@@ -53,13 +53,8 @@ class PairRanker(Ranker):
     else:
       scores = self._get_scores(query, feasible_index, **kwargs)
       order = feasible_index[np.argsort(-scores)]
-<<<<<<< HEAD
-
-      prob = 1 / (1 + np.exp(self.beta * (scores[0] - scores[1])))
-=======
       score_diff = np.clip(self.beta * (scores[0] - scores[1]), -20, 20)
       prob = 1 / (1 + np.exp(score_diff))
->>>>>>> invspec
       if self.perfect_rank:
         feedback = order[0]
       else:

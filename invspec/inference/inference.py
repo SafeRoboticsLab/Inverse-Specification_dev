@@ -35,13 +35,6 @@ class Inference(ABC):
   def design2input(self, designs):
     if isinstance(designs, Population):
       # currently only interact with objectives:
-<<<<<<< HEAD
-      # add '-' because we want to maximize, but GA wants to minimize
-      if self.F_normalize:  # normalize by a priori F_min anf F_max
-        assert (self.F_min is not None and self.F_max is not None),\
-            print("Need to provide feature bounds if using normalize")
-        F = self.normalize(-designs.get('F'))
-=======
       if self.pop_extract_type == 'F':
         # add '-' because we want to maximize, but GA wants to minimize
         ind = -1.
@@ -56,7 +49,6 @@ class Inference(ABC):
 
       if self.input_normalize:  # normalize by a priori input_min and input_max
         input = self.normalize(ind * designs.get(self.pop_extract_type))
->>>>>>> invspec
       else:
         input = ind * designs.get(self.pop_extract_type)
     elif isinstance(designs, np.ndarray):
