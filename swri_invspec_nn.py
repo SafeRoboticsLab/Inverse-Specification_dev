@@ -1,11 +1,11 @@
 # Please contact the author(s) of this library if you have any questions.
 # Authors: Kai-Chieh Hsu ( kaichieh@princeton.edu )
+# the result is not as good as using GP.
 
 import time
 import os
 import copy
 import numpy as np
-import matplotlib.pyplot as plt
 import argparse
 import pickle
 
@@ -29,16 +29,13 @@ from humansim.human_simulator import HumanSimulator
 from humansim.ranker.pair_ranker import PairRankerSimulator
 
 # inverse specification module
-from funct_approx.config import GPConfig
+from funct_approx.config import NNConfig
 from invspec.inv_spec import InvSpec
 from invspec.querySelector.random_selector import RandomQuerySelector
-from invspec.querySelector.mutual_info_query_selector import (
-    MutualInfoQuerySelector
-)
-from invspec.inference.reward_GP import RewardGP
+from invspec.inference.reward_NN import RewardNN
 
 # others
-from utils import set_seed, save_obj, plot_result_pairwise, normalize
+from utils import (set_seed, save_obj, plot_result_pairwise, normalize)
 from config.config import load_config
 from shutil import copyfile
 
@@ -48,24 +45,22 @@ def main(config_file, config_dict):
   config_general = config_dict['GENERAL']
   config_ga = config_dict['GA']
   config_inv_spec = config_dict['INV_SPEC']
-  config_gp = config_dict['GP']
+  config_nn = config_dict['NN']
   config_human = config_dict['HUMAN']
 
-  out_folder = os.path.join('scratch', 'swri', 'invspec_gp')
+  out_folder = os.path.join('scratch', 'swri', 'invspec_nn')
   if config_general.NAME is not None:
     out_folder = os.path.join(out_folder, config_general.NAME)
   fig_folder = os.path.join(out_folder, 'figure')
   os.makedirs(fig_folder, exist_ok=True)
-  agent_folder = os.path.join(out_folder, 'agent')
-  os.makedirs(agent_folder, exist_ok=True)
-  obj_eval_folder = os.path.join(out_folder, 'obj_eval')
-  os.makedirs(obj_eval_folder, exist_ok=True)
   fig_progress_folder = os.path.join(fig_folder, 'progress')
   os.makedirs(fig_progress_folder, exist_ok=True)
+  agent_folder = os.path.join(out_folder, 'agent')
+  os.makedirs(agent_folder, exist_ok=True)
+
   copyfile(config_file, os.path.join(out_folder, 'config.yaml'))
 
   timestr = time.strftime("%m-%d-%H_%M")
-
   # endregion
 
   # region: == Define Problem ==
@@ -74,7 +69,7 @@ def main(config_file, config_dict):
   TEMPLATE_FILE = os.path.join('swri', 'template', 'FlightDyn_quadH.inp')
   EXEC_FILE = os.path.join('swri', "new_fdm")
   problem = SWRIProblem(
-      TEMPLATE_FILE, EXEC_FILE, num_workers=config_general.NUM_WORKERS,
+      TEMPLATE_FILE, EXEC_FILE, num_workers=5,
       prefix="eval_" + time.strftime("%m-%d-%H_%M") + "_"
   )
 
@@ -157,8 +152,7 @@ def main(config_file, config_dict):
   human = HumanSimulator(
       ranker=PairRankerSimulator(
           simulator=SWRISimParallel(
-              TEMPLATE_FILE, EXEC_FILE, num_workers=config_general.NUM_WORKERS,
-              prefix='human_'
+              TEMPLATE_FILE, EXEC_FILE, num_workers=5, prefix='human_'
           ), beta=config_human.BETA,
           active_constraint_set=active_constraint_set,
           perfect_rank=config_human.PERFECT_RANK,
@@ -170,14 +164,13 @@ def main(config_file, config_dict):
 
   # region: == Define invSpec ==
   print("\n== InvSpec Construction ==")
-  CONFIG = GPConfig(
-      SEED=config_general.SEED,
-      MAX_QUERIES=config_inv_spec.MAX_QUERIES,
+  CONFIG = NNConfig(
+      SEED=config_general.SEED, MAX_QUERIES=config_inv_spec.MAX_QUERIES,
       MAX_QUERIES_PER=config_inv_spec.MAX_QUERIES_PER,
-      HORIZONTAL_LENGTH=config_gp.HORIZONTAL_LENGTH,
-      VERTICAL_VARIATION=config_gp.VERTICAL_VARIATION,
-      NOISE_LEVEL=config_gp.NOISE_LEVEL,
-      NOISE_PROBIT=config_gp.NOISE_PROBIT,
+      ARCHITECTURE=config_nn.ARCHITECTURE, ACTIVATION=config_nn.ACTIVATION,
+      MAX_UPDATES=config_nn.MAX_UPDATES, BATCH_SIZE=config_nn.BATCH_SIZE,
+      LR=config_nn.LEARNING_RATE, LR_PERIOD=config_nn.LR_PERIOD,
+      TRADEOFF=config_nn.TRADEOFF
   )
   print(vars(CONFIG), '\n')
 
@@ -191,7 +184,6 @@ def main(config_file, config_dict):
             config_inv_spec.POP_EXTRACT_TYPE
         )
     )
-  initial_point = np.zeros(dimension)
   if config_inv_spec.INPUT_NORMALIZE:
     input_normalize = True
     if config_inv_spec.POP_EXTRACT_TYPE == 'F':
@@ -206,22 +198,15 @@ def main(config_file, config_dict):
     input_min = None
     input_max = None
 
-  if config_inv_spec.QUERY_SELECTOR_TYPE == 'rand':
-    agent = InvSpec(
-        inference=RewardGP(
-            dimension, 0, CONFIG, initial_point, input_min=input_min,
-            input_max=input_max, input_normalize=input_normalize,
-            pop_extract_type=config_inv_spec.POP_EXTRACT_TYPE, verbose=True
-        ), querySelector=RandomQuerySelector()
-    )
-  else:
-    agent = InvSpec(
-        inference=RewardGP(
-            dimension, 0, CONFIG, initial_point, input_min=input_min,
-            input_max=input_max, input_normalize=input_normalize,
-            pop_extract_type=config_inv_spec.POP_EXTRACT_TYPE, verbose=True
-        ), querySelector=MutualInfoQuerySelector()
-    )
+  agent = InvSpec(
+      inference=RewardNN(
+          state_dim=dimension, action_dim=0, CONFIG=CONFIG,
+          input_min=input_min, input_max=input_max,
+          input_normalize=input_normalize,
+          pop_extract_type=config_inv_spec.POP_EXTRACT_TYPE,
+          beta=config_inv_spec.BETA, verbose=True
+      ), querySelector=RandomQuerySelector()
+  )
   # endregion
 
   # region: == Optimization ==
@@ -241,15 +226,10 @@ def main(config_file, config_dict):
   agent.clear_feedback()
   updateTimes = 0
   start_time = time.time()
-  designs_collection = {}
   while obj.has_next():
     #= perform an iteration of the algorithm
-    obj.next()
     print(obj.n_gen, end='\r')
-    if obj.n_gen == config_inv_spec.NUM_WARMUP:
-      designs_collection['component_values'] = obj.pop.get('X')
-      designs_collection['features'] = -obj.pop.get('F')
-      designs_collection['scores'] = obj.pop.get('scores')
+    obj.next()
     n_acc_fb = agent.get_number_feedback()
 
     #= check performance
@@ -308,12 +288,13 @@ def main(config_file, config_dict):
             q_1 = (query_components[0:1, :], np.array([]).reshape(1, 0))
             q_2 = (query_components[1:2, :], np.array([]).reshape(1, 0))
 
-          if fb_raw != 2:
-            if fb_raw == 0:
-              fb_invspec = 1
-            elif fb_raw == 1:
-              fb_invspec = -1
-            agent.store_feedback(q_1, q_2, fb_invspec)
+          if fb_raw == 0:
+            fb_invspec = np.array([1., 0.])
+          elif fb_raw == 1:
+            fb_invspec = np.array([0., 1.])
+          elif fb_raw == 2:
+            fb_invspec = np.array([.5, .5])
+          agent.store_feedback(q_1, q_2, fb_invspec)
 
         n_fb = len(indices)
         n_acc_fb = agent.get_number_feedback()
@@ -324,7 +305,10 @@ def main(config_file, config_dict):
         )
 
         # 3. update fitness function
-        _ = agent.learn()
+        _ = agent.learn(
+            CONFIG.MAX_UPDATES, check_period=int(CONFIG.MAX_UPDATES / 2),
+            initialize=True
+        )
         obj.fitness_func = agent.inference
         updateTimes += 1
 
@@ -332,10 +316,6 @@ def main(config_file, config_dict):
         indices = np.argsort(features[:, 0])
         features = features[indices]
         save_obj(agent, os.path.join(agent_folder, 'agent' + str(updateTimes)))
-        obj_eval_path = os.path.join(
-            obj_eval_folder, 'obj' + str(updateTimes - 1) + '.npy'
-        )
-        np.save(obj_eval_path, features)
         print()
       else:
         print("Exceed maximal number of queries!", end=' ')
@@ -346,33 +326,6 @@ def main(config_file, config_dict):
   # endregion
 
   # region: finally obtain the result object
-  if "features" in designs_collection:  # have designs after GA
-    designs_collection['component_values'] = np.concatenate(
-        (obj.pop.get('X'), designs_collection['component_values'])
-    )
-    designs_collection['features'] = np.concatenate(
-        (-obj.pop.get('F'), designs_collection['features'])
-    )
-    designs_collection['scores'] = np.concatenate(
-        (obj.pop.get('scores'), designs_collection['scores'])
-    )
-  if agent.inference.input_normalize:
-    features_final = agent.inference.normalize(designs_collection['features'])
-  else:
-    features_final = designs_collection['features']
-
-  designs_collection['predicted_scores'] = np.empty(
-      shape=designs_collection['scores'].shape
-  )
-  for i, feature in enumerate(features_final):
-    designs_collection['predicted_scores'][i] = agent.inference.eval(feature)
-
-  pickle_path = os.path.join(out_folder, 'design_collections.pkl')
-  with open(pickle_path, 'wb') as output:
-    pickle.dump(designs_collection, output, pickle.HIGHEST_PROTOCOL)
-  print(designs_collection['scores'])
-  print(designs_collection['predicted_scores'])
-
   res = obj.result()
   res_to_save = dict(X=res.X, F=res.F, pop=res.pop, opt=res.opt)
   pickle_path = os.path.join(out_folder, timestr + '.pkl')
@@ -393,8 +346,6 @@ def main(config_file, config_dict):
   features = features[indices]
   with np.printoptions(formatter={'float': '{: 2.2f}'.format}):
     print(features[-1])
-
-  save_obj(agent, os.path.join(agent_folder, 'agent_final'))
   # endregion
 
 
@@ -402,7 +353,7 @@ if __name__ == "__main__":
   parser = argparse.ArgumentParser()
   parser.add_argument(
       "-cf", "--config_file", help="config file path", type=str,
-      default=os.path.join("config", "swri_invspec_gp.yaml")
+      default=os.path.join("config", "swri_invspec_nn.yaml")
   )
   args = parser.parse_args()
   config_dict = load_config(args.config_file)

@@ -48,6 +48,7 @@ class SWRIWrapper(ABC):
         'control_requested_lateral_speed',
     ])
     self.input_mask = ['real', 'real', 'real', 'real', 'real', 'real']
+    self.n_obj = self.values_to_extract.shape[0]
 
   def _input_wrapper(self, x):
     """Wraps designs to fit in the format of the simulator input.
@@ -76,16 +77,25 @@ class SWRIWrapper(ABC):
     )
     return input
 
-  def _output_extracter(self, output, get_score=False, **kwargs):
-    if get_score:
-      return np.array(output['Path_traverse_score_based_on_requirements'])
-    else:
+  def _output_extracter(
+      self, output, get_score=False, get_all=False, **kwargs
+  ):
+    if get_score or get_all:
+      scores = np.array(output['Path_traverse_score_based_on_requirements'])
+
+    if not get_score or get_all:
       y = []
       for key, value in output.items():
         if np.any(self.values_to_extract == key):
           y.append(value)
+      features = np.array(y) * self.obj_indicator
 
-    return np.array(y) * self.obj_indicator
+    if get_all:
+      return features, scores
+    elif get_score:
+      return scores
+    else:
+      return features
 
 
 class SWRISimSerial(SWRIWrapper):
@@ -124,7 +134,10 @@ class SWRISimParallel(SWRIWrapper):
         template_file, exec_file, self.num_workers, prefix=prefix
     )
 
-  def get_fetures(self, X, *args, **kwargs):
+  def get_fetures(
+      self, X, delete_folder=True, get_score=False, get_all=False, *args,
+      **kwargs
+  ):
     pool = Pool(self.num_workers)
     input_dict = []
     for input in pool.imap(self._input_wrapper, X):
@@ -132,13 +145,11 @@ class SWRISimParallel(SWRIWrapper):
     pool.close()
     pool.join()
 
-    delete_folder = True
     if 'delete_folder' in kwargs:
       delete_folder = kwargs['delete_folder']
 
     Y = self.sim.sim(input_dict, delete_folder=delete_folder)
 
-    get_score = False
     if 'get_score' in kwargs:
       get_score = kwargs['get_score']
     if get_score:
@@ -146,14 +157,29 @@ class SWRISimParallel(SWRIWrapper):
     else:
       features = np.empty(shape=(X.shape[0], self.n_obj))
 
+    if 'get_all' in kwargs:
+      get_all = kwargs['get_all']
+    if get_all:
+      scores = np.empty(shape=(X.shape[0], 1))
+
     pool = Pool(self.num_workers)
-    partial_func = partial(self._output_extracter, get_score=get_score)
-    for i, y in enumerate(pool.imap(partial_func, Y)):
-      features[i, :] = y
+    partial_func = partial(
+        self._output_extracter, get_score=get_score, get_all=get_all
+    )
+    if get_all:
+      for i, (y, score) in enumerate(pool.imap(partial_func, Y)):
+        features[i, :] = y
+        scores[i] = score
+    else:
+      for i, y in enumerate(pool.imap(partial_func, Y)):
+        features[i, :] = y
     pool.close()
     pool.join()
 
-    return features
+    if get_all:
+      return features, scores
+    else:
+      return features
 
 
 class SWRIElementwiseProblem(ElementwiseProblem, SWRISimSerial):
@@ -204,4 +230,6 @@ class SWRIProblem(Problem, SWRISimParallel):
     )
 
   def _evaluate(self, X, out, *args, **kwargs):
-    out['F'] = self.get_fetures(X, *args, **kwargs)
+    out['F'], out['scores'] = self.get_fetures(
+        X, get_all=True, *args, **kwargs
+    )

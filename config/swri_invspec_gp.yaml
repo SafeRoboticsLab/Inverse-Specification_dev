@@ -1,0 +1,32 @@
+GENERAL:
+  SEED: 0
+  CHECK_GEN: 5
+  NAME: test
+  NUM_WORKERS: 9
+
+GA:
+  POP_SIZE: 25
+  NUM_GEN: 50
+
+INV_SPEC:
+  NUM_WARMUP: 20
+  QUERY_SELECTOR_TYPE: rand
+  INTERACT_PERIOD: 10
+  MAX_QUERIES_PER: 10
+  MAX_QUERIES: 100
+  INFER_TYPE: gp
+  POP_EXTRACT_TYPE: F
+  BETA: 10.
+  INPUT_NORMALIZE: true
+
+GP:
+  HORIZONTAL_LENGTH: 0.3  # ell in RBF kernel
+  VERTICAL_VARIATION: 1.0  # sigma_f in RBF kernel
+  NOISE_LEVEL: 0.1  # sigma_n in RBF kernel
+  NOISE_PROBIT: 0.5  # sigma in Probit model
+
+HUMAN:
+  BETA: 10
+  TYPE: plain
+  PERFECT_RANK: false
+  INDIFFERENCE: 0.01

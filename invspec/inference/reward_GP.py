@@ -25,7 +25,6 @@
 
 import numpy as np
 
-
 np.seterr(invalid='ignore')
 # import scipy
 from scipy import stats
@@ -37,46 +36,49 @@ from invspec.inference.inference import Inference
 class RewardGP(Inference):
 
   def __init__(
-      self, stateDim, actionDim, CONFIG, initialPoint, F_min=None, F_max=None,
-      F_normalize=True, verbose=False
+      self, state_dim, action_dim, CONFIG, initial_point, input_min=None,
+      input_max=None, input_normalize=True, pop_extract_type='F', verbose=False
   ):
-    assert stateDim+actionDim == len(initialPoint), \
+    assert state_dim+action_dim == len(initial_point), \
         "fature size doesn't match"
-    super().__init__(stateDim, actionDim, CONFIG, F_min, F_max, F_normalize)
-    self.dim = len(initialPoint)  # number of features
+    super().__init__(
+        state_dim, action_dim, CONFIG, input_min, input_max, input_normalize,
+        pop_extract_type
+    )
+    self.dim = len(initial_point)  # number of features
 
     #= hyperparameter
     # kernel
     self.theta = 1 / (2 * CONFIG.HORIZONTAL_LENGTH**2)
     self.vertical_variation = CONFIG.VERTICAL_VARIATION
     self.noise_level = CONFIG.NOISE_LEVEL
-    self.initialPoint = np.array(initialPoint)  # f(initial point set) = 0
+    self.initial_point = np.array(initial_point)  # f(initial point set) = 0
     self.fmode = None
     # response function
     self.noise_probit = CONFIG.NOISE_PROBIT
 
   #region: == Interface with GA ==
-  def _eval_query(self, F, **kwargs):
+  def _eval_query(self, input, **kwargs):
     """Evaluates a query.
 
     Args:
-        F (np.ndarray): matrix of obejectives, of shape (2, #obj).
+        input (np.ndarray): matrix of inputs, of shape (2, self.dim).
 
     Returns:
         float: information gain.
     """
-    return self.get_information_gain(F)
+    return self.get_information_gain(input)
 
-  def _eval(self, F, **kwargs):
+  def _eval(self, input, **kwargs):
     """Evaluates design(s).
 
     Args:
-        F (np.ndarray): matrix of obejectives, of shape (#designs, #obj).
+        input (np.ndarray): matrix of inputs, of shape (#designs, self.dim).
 
     Returns:
         float: inferred human utility (used as fitness function in GA).
     """
-    fitness = self.post_mean(F)
+    fitness = self.post_mean(input)
     return fitness
 
   #endregion
@@ -150,8 +152,8 @@ class RewardGP(Inference):
         float: kernel value.
     """
     dist_i_j = np.linalg.norm(xi - xj)**2
-    dist_i_base = np.linalg.norm(xi - self.initialPoint)**2
-    dist_j_base = np.linalg.norm(xj - self.initialPoint)**2
+    dist_i_base = np.linalg.norm(xi - self.initial_point)**2
+    dist_j_base = np.linalg.norm(xj - self.initial_point)**2
     kernel_base = np.exp(-self.theta * (dist_i_base+dist_j_base))
     kernel_base *= self.vertical_variation
     _kernel = self.vertical_variation * np.exp(-self.theta * dist_i_j)

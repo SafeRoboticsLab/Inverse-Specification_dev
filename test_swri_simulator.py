@@ -97,9 +97,9 @@ if test_problem_wrapper:
   out_parallel = {}
   exec_time_parallel = 0.
   start_time = time.time()
-  problem_parallel._evaluate(X, out_parallel, get_score=True)
+  problem_parallel._evaluate(X, out_parallel)
   exec_time_parallel += (time.time() - start_time)
-  scores_parallel = out_parallel['F']
+  scores_parallel = out_parallel['scores']
   print("\n== Parallel Problem Simulator ==")
   print("scores:", scores_parallel)
   print("--> EXEC TIME: {}".format(exec_time_parallel))

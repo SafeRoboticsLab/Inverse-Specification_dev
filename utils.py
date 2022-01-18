@@ -12,18 +12,18 @@ import pickle
 
 
 # region: DATA PROCESSING
-def normalize(F, F_min=None, F_max=None):
-  if F_min is None:
-    F_min = np.min(F, axis=0)
-  if F_max is None:
-    F_max = np.max(F, axis=0)
-  F_spacing = F_max - F_min
+def normalize(input, input_min=None, input_max=None):
+  if input_min is None:
+    input_min = np.min(input, axis=0)
+  if input_max is None:
+    input_max = np.max(input, axis=0)
+  F_spacing = input_max - input_min
 
-  return (F-F_min) / F_spacing
+  return (input-input_min) / F_spacing
 
 
-def unnormalize(_F, F_min, F_max):
-  return _F * (F_max-F_min) + F_min
+def unnormalize(_F, input_min, input_max):
+  return _F * (input_max-input_min) + input_min
 
 
 # endregion
@@ -401,18 +401,33 @@ def plot_mean_conf_interval(
 
 
 # PLOT GA POPULATION BY OBJECTIVES
-def plot_single_objective(F, objective_names, subfigsz=4, fsz=16, sz=20):
+def plot_single_objective(
+    F, objective_names, subfigsz=4, fsz=16, sz=20, axis_bound=None, c='b',
+    alpha=0.5, show_legend=False, cmap='tab20b'
+):
   F = F.reshape(-1)
   fig, ax = plt.subplots(1, 1, figsize=(subfigsz, subfigsz))
-  ax.scatter(np.arange(F.shape[0]), F, c='b', s=sz, alpha=0.5)
+  # ax.xaxis.set_major_locator(plt.MaxNLocator(5))
+  # ax.yaxis.set_major_locator(plt.MaxNLocator(5))
+  scatter = ax.scatter(
+      np.arange(F.shape[0]), F, c=c, s=sz, alpha=alpha, cmap=cmap
+  )
   ax.set_ylabel(objective_names['o1'], fontsize=fsz)
   ax.set_xlabel("Design Index", fontsize=fsz)
+  if axis_bound is not None:
+    ax.set_ylim(axis_bound[0], axis_bound[1])
+  if show_legend:
+    legend1 = ax.legend(
+        *scatter.legend_elements(), loc="best", title="Classes"
+    )
+    ax.add_artist(legend1)
   return fig
 
 
 def plot_result_pairwise(
     n_obj, F, objective_names, axis_bound, n_col_default=5, subfigsz=4, fsz=16,
-    sz=20, lw=3, active_constraint_set=None
+    sz=20, lw=3, active_constraint_set=None, c='b', alpha=0.5,
+    show_legend=False, centers=None, cmap='tab20b'
 ):
 
   def _get_ax(idx, n_row, n_col, ax_array):
@@ -438,6 +453,9 @@ def plot_result_pairwise(
   n_row = int(np.ceil(num_snapshot / n_col))
   figsize = (n_col * subfigsz, n_row * subfigsz)
   fig, ax_array = plt.subplots(n_row, n_col, figsize=figsize)
+  # for axi in ax_array.flat:
+  #   axi.xaxis.set_major_locator(plt.MaxNLocator(5))
+  #   axi.yaxis.set_major_locator(plt.MaxNLocator(5))
   if active_constraint_set is not None:
     assert axis_bound is not None, "constraint plotting requires axis bound"
     for (feature_idx, threshold) in active_constraint_set:
@@ -460,13 +478,24 @@ def plot_result_pairwise(
   for i in range(n_obj):
     for j in range(i + 1, n_obj):
       ax = _get_ax(idx, n_row, n_col, ax_array)
-      ax.scatter(F[:, i], F[:, j], c='b', s=sz, alpha=0.5)
+      scatter = ax.scatter(F[:, i], F[:, j], c=c, s=sz, alpha=alpha, cmap=cmap)
+      if centers is not None:
+        ax.scatter(
+            centers[:, i], centers[:, j], c=np.arange(len(centers)), s=64,
+            alpha=1, marker='^', cmap=cmap
+        )
       ax.set_xlabel(objective_names['o' + str(i + 1)], fontsize=fsz)
       ax.set_ylabel(objective_names['o' + str(j + 1)], fontsize=fsz)
       if axis_bound is not None:
         ax.set_xlim(axis_bound[i, 0], axis_bound[i, 1])
         ax.set_ylim(axis_bound[j, 0], axis_bound[j, 1])
       idx += 1
+  if show_legend:
+    ax = ax_array[n_row - 1][n_col - 1]
+    legend1 = ax.legend(
+        *scatter.legend_elements(), loc="best", title="Classes"
+    )
+    ax.add_artist(legend1)
   return fig
 
 
@@ -607,20 +636,21 @@ def plot_output_3D(
 
 def plot_output_2D(
     X, Y, Z, obj_list_un, axis_bound, level_ratios, fsz=22, subfigsz=4,
-    cm='coolwarm', alpha=1, lw=2.5
+    cm='coolwarm', alpha=.8, lw=2.5
 ):
+  cm = plt.cm.get_cmap(cm).reversed()
 
-  F_min = axis_bound[:, 0]
-  F_max = axis_bound[:, 1]
+  input_min = axis_bound[:, 0]
+  input_max = axis_bound[:, 1]
 
   n_row = 1
   n_col = len(obj_list_un)
   figsize = (n_col * subfigsz, n_row * subfigsz)
 
   ticks = np.array([0., 0.2, 0.5, 1.])
-  xticklabels = unnormalize(ticks, F_min[0], F_max[0])
+  xticklabels = unnormalize(ticks, input_min[0], input_max[0])
   xticklabels = [int(x) for x in xticklabels]
-  yticklabels = unnormalize(ticks, F_min[1], F_max[1])
+  yticklabels = unnormalize(ticks, input_min[1], input_max[1])
   yticklabels = ['{:.2f}'.format(y) for y in yticklabels]
   extent = [0, 1, 0, 1]
 
@@ -634,7 +664,7 @@ def plot_output_2D(
   for idx, obj in enumerate(obj_list_un):
     ax = axes[idx]
     v = Z[:, :, idx]
-    ax.imshow(
+    im = ax.imshow(
         v.T, cmap=cm, vmin=vmin, vmax=vmax, alpha=alpha, origin='lower',
         extent=extent
     )
@@ -652,11 +682,19 @@ def plot_output_2D(
     ax.set_yticks(ticks)
     ax.set_yticklabels(yticklabels, fontsize=fsz - 4)
 
-    ax.set_title('Power = {:.0f}'.format(-obj), fontsize=fsz, pad=0)
+    ax.set_title('Power = {:.0f} (W)'.format(-obj), fontsize=fsz, pad=0)
 
-  fig.supxlabel('Range', fontsize=fsz)
-  axes[0].set_ylabel('Speed', fontsize=fsz)
+  cbar = fig.colorbar(
+      im, ax=ax, pad=0.01, fraction=0.05, shrink=.95, ticks=[vmin, vmax]
+  )
+  cbar.ax.tick_params(labelsize=fsz - 4)
+
+  fig.supxlabel('Range (m)', fontsize=fsz)
+  axes[0].set_ylabel('Speed (m/s)', fontsize=fsz)
   return fig, axes
+
+
+# endregion
 
 
 #== pickle ==

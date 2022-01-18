@@ -4,9 +4,11 @@
 **/scratch
 .vscode/
 swri/template/*
+dataset/*
 
 # 
 *.out
 swri/flight-dynamics-model/
 swri/new_fdm
 tmp.py
+*.code-workspace

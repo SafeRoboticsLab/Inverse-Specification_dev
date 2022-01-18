@@ -17,11 +17,15 @@ from invspec.inference.inference import Inference
 class RewardNN(Inference):
 
   def __init__(
-      self, stateDim, actionDim, CONFIG, F_min=None, F_max=None,
-      F_normalize=True, beta=10, verbose=False, boundedOutput=True
+      self, state_dim, action_dim, CONFIG, input_min=None, input_max=None,
+      input_normalize=True, pop_extract_type='F', beta=10, verbose=False,
+      bounded_output=True
   ):
 
-    super().__init__(stateDim, actionDim, CONFIG, F_min, F_max, F_normalize)
+    super().__init__(
+        state_dim, action_dim, CONFIG, input_min, input_max, input_normalize,
+        pop_extract_type
+    )
 
     #== PARAM ==
     # Learning Rate
@@ -38,9 +42,9 @@ class RewardNN(Inference):
     self.beta = beta
 
     #== NEURAL NETWORK ==
-    self.dimList = [stateDim+actionDim] + CONFIG.ARCHITECTURE + [1]
+    self.dimList = [state_dim+action_dim] + CONFIG.ARCHITECTURE + [1]
     self.actType = CONFIG.ACTIVATION
-    self.boundedOutput = boundedOutput
+    self.bounded_output = bounded_output
     self.device = CONFIG.DEVICE
     self.BATCH_SIZE = CONFIG.BATCH_SIZE
 
@@ -48,20 +52,20 @@ class RewardNN(Inference):
     self.build_optimizer()
 
   #== Interface with GA ==
-  def _eval(self, F, **kwargs):
-    trajectories = np.expand_dims(F, axis=1)
+  def _eval(self, input, **kwargs):
+    trajectories = np.expand_dims(input, axis=1)
     with torch.no_grad():
       self.reward.eval()
       fitness = self.get_reward_traj(trajectories)
     fitness = fitness.detach().cpu().numpy().reshape(-1)
     return fitness
 
-  def _eval_query(self, F, **kwargs):
+  def _eval_query(self, input, **kwargs):
     return
 
   #== Function Approximator ==
   def build_NN(self, verbose=False):
-    if self.boundedOutput:
+    if self.bounded_output:
       self.reward = NeuralNetwork(
           self.dimList, self.actType, verbose, torch.nn.Tanh()
       )
@@ -85,7 +89,7 @@ class RewardNN(Inference):
   #== RETRIEVING ==
   def get_reward_traj(self, trajectories):
     x = torch.FloatTensor(trajectories).to(self.device)
-    if self.boundedOutput:  # map to [0, 1]
+    if self.bounded_output:  # map to [0, 1]
       reward_components = self.reward(x) * 0.5 + 0.5
     else:
       reward_components = self.reward(x)
@@ -118,7 +122,7 @@ class RewardNN(Inference):
 
     Args:
         trajectories (np.ndarray): has shape (batch_size, length,
-        stateDim+actionDim).
+        state_dim+action_dim).
 
     Returns:
         ndarray: predicted order.
@@ -127,7 +131,7 @@ class RewardNN(Inference):
     self.reward.eval()
     trajTensor = torch.FloatTensor(trajectories).to(self.device)
     with torch.no_grad():
-      if self.boundedOutput:  # map to [0, 1]
+      if self.bounded_output:  # map to [0, 1]
         reward_components = self.reward(trajTensor) * 0.5 + 0.5
       else:
         reward_components = self.reward(trajTensor)

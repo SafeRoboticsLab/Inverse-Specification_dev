@@ -2,53 +2,71 @@
 # Authors: Kai-Chieh Hsu ( kaichieh@princeton.edu )
 
 from abc import ABC, abstractmethod
+import warnings
 import numpy as np
-
 from collections import namedtuple
-
-Feedback = namedtuple('Feedback', ['q_1', 'q_2', 'f'])
+from pymoo.core.population import Population
 
 from funct_approx.memory import ReplayMemory
 
-from pymoo.core.population import Population
+Feedback = namedtuple('Feedback', ['q_1', 'q_2', 'f'])
 
 
 class Inference(ABC):
 
   def __init__(
-      self, stateDim, actionDim, CONFIG, F_min=None, F_max=None,
-      F_normalize=True
+      self, state_dim, action_dim, CONFIG, input_min=None, input_max=None,
+      input_normalize=True, pop_extract_type='F'
   ):
 
     super().__init__()
     #= ENV
-    self.stateDim = stateDim
-    self.actionDim = actionDim
-    self.F_min = F_min
-    self.F_max = F_max
-    self.F_normalize = F_normalize
+    self.state_dim = state_dim
+    self.action_dim = action_dim
+    self.input_min = input_min
+    self.input_max = input_max
+    self.input_normalize = input_normalize
+    self.pop_extract_type = pop_extract_type
 
     #= OBJECTS
     self.memory = ReplayMemory(CONFIG.MEMORY_CAPACITY, CONFIG.SEED)
 
   #region: == Interface with GA ==
-  def design2obj(self, designs):
+  def design2input(self, designs):
     if isinstance(designs, Population):
       # currently only interact with objectives:
+<<<<<<< HEAD
       # add '-' because we want to maximize, but GA wants to minimize
       if self.F_normalize:  # normalize by a priori F_min anf F_max
         assert (self.F_min is not None and self.F_max is not None),\
             print("Need to provide feature bounds if using normalize")
         F = self.normalize(-designs.get('F'))
+=======
+      if self.pop_extract_type == 'F':
+        # add '-' because we want to maximize, but GA wants to minimize
+        ind = -1.
+      elif self.pop_extract_type == 'X':
+        ind = 1.
       else:
-        F = -designs.get('F')
+        raise ValueError(
+            "The pop_extract_type ({}) is not supported".format(
+                self.pop_extract_type
+            )
+        )
+
+      if self.input_normalize:  # normalize by a priori input_min and input_max
+        input = self.normalize(ind * designs.get(self.pop_extract_type))
+>>>>>>> invspec
+      else:
+        input = ind * designs.get(self.pop_extract_type)
     elif isinstance(designs, np.ndarray):
-      F = designs
+      input = designs
     else:
       raise ValueError(
           "Designs must be either pymoo:Population or numpy:array!"
       )
-    return F
+
+    return input.astype('float32')
 
   def eval(self, pop, **kwargs):
     """
@@ -62,8 +80,8 @@ class Inference(ABC):
     Returns:
         np.ndarray: float, fitness of the designs in the current population
     """
-    F = self.design2obj(pop)
-    fitness = self._eval(F, **kwargs)
+    input = self.design2input(pop)
+    fitness = self._eval(input, **kwargs)
 
     if isinstance(pop, Population):
       for i, ind in enumerate(pop):
@@ -73,7 +91,7 @@ class Inference(ABC):
       return fitness
 
   @abstractmethod
-  def _eval(self, F, **kwargs):
+  def _eval(self, input, **kwargs):
     """
     Evaluates the fitness according to the (normalized) obejective
     measurements. The child class must implement this function.
@@ -92,12 +110,12 @@ class Inference(ABC):
     Args:
         query: a pair of designs, of shape (2,)
     """
-    F = self.design2obj(query)
-    metric = self._eval_query(F, **kwargs)
+    input = self.design2input(query)
+    metric = self._eval_query(input, **kwargs)
     return metric
 
   @abstractmethod
-  def _eval_query(self, F, **kwargs):
+  def _eval_query(self, input, **kwargs):
     """
     Evaluate the quality of the query. The child class must implement this
     function.
@@ -130,10 +148,13 @@ class Inference(ABC):
   #endregion
 
   #region: == Utils ==
-  def normalize(self, F):
-    F_spacing = self.F_max - self.F_min
-
-    return (F - self.F_min) / F_spacing
+  def normalize(self, input):
+    if (self.input_min is None or self.input_max is None):
+      warnings.warn("Need to provide input bounds if using normalize")
+      return input
+    else:
+      input_spacing = self.input_max - self.input_min
+      return (input - self.input_min) / input_spacing
 
   def get_all_query_feedback(self):
     feedbacks = self.memory.memory
@@ -170,25 +191,25 @@ class Inference(ABC):
   def trans_state_action_tuple2numpy(qs):
     """
     Transforms a sequence of (state, action) pairs into a numpy array of shape
-    (batch_size, length, stateDim+actionDim).
+    (batch_size, length, state_dim+action_dim).
 
     Args:
         qs (tuple): tuple of (state, action) tuples.
 
     Returns:
-        np.ndarray: of shape (batch_size, length, stateDim+actionDim).
+        np.ndarray: of shape (batch_size, length, state_dim+action_dim).
     """
     batch_size = len(qs)
     length = qs[0][0].shape[0]
-    stateDim = qs[0][0].shape[1]
-    actionDim = qs[0][1].shape[1]
+    state_dim = qs[0][0].shape[1]
+    action_dim = qs[0][1].shape[1]
 
-    trajectories = np.empty(shape=(batch_size, length, stateDim + actionDim))
+    trajectories = np.empty(shape=(batch_size, length, state_dim + action_dim))
 
     for i, q in enumerate(qs):
       state, action = q
-      trajectories[i, :, :stateDim] = state
-      trajectories[i, :, stateDim:] = action
+      trajectories[i, :, :state_dim] = state
+      trajectories[i, :, state_dim:] = action
 
     return trajectories
 

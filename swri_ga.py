@@ -1,6 +1,6 @@
 # Please contact the author(s) of this library if you have any questions.
 # Authors: Kai-Chieh Hsu ( kaichieh@princeton.edu )
-# example: python3 swri_ga.py -cg 1 -psz 10 -ng 100
+# example: python3 swri_ga.py -psz 25 -ng 50 -cg 5
 
 import time
 import os
@@ -24,9 +24,7 @@ from pymoo.operators.mixed_variable_operator import (
 )
 
 # others
-from utils import (
-    set_seed, plot_result_3D, plot_result_pairwise, plot_single_objective
-)
+from utils import (set_seed, plot_result_pairwise, plot_single_objective)
 
 timestr = time.strftime("%m-%d-%H_%M")
 
@@ -50,11 +48,15 @@ parser.add_argument(
     "-p", "--problem_type", help="problem type", default='parallel', type=str,
     choices=['series', 'parallel']
 )
-parser.add_argument("-n", "--name", help="extra name", default="")
+
+# output
+parser.add_argument("-n", "--name", help="extra name", default=None)
 
 args = parser.parse_args()
 print(args)
-out_folder = os.path.join('scratch', 'swri', 'NSGA2' + args.name)
+out_folder = os.path.join('scratch', 'swri', 'NSGA2')
+if args.name is not None:
+  out_folder = os.path.join(out_folder, args.name)
 fig_folder = os.path.join(out_folder, 'figure')
 os.makedirs(fig_folder, exist_ok=True)
 # endregion
@@ -82,9 +84,25 @@ problem._evaluate(x, y)
 print("\nGet the output from the problem:")
 for key, value in y.items():
   print(key, ":", value)
+
+objectives_bound = np.array([
+    [0, 4000],
+    [-400, 0],
+    [0, 30],
+    [-50, 0.],
+    [-12, 0.],
+])
+scores_bound = np.array([-1e-8, 430])
+
+input_names_dict = {}
+for i in range(len(problem.input_names)):
+  input_names_dict['o' + str(i + 1)] = problem.input_names[i][8:]
+inputs_bound = np.concatenate(
+    (problem.xl[:, np.newaxis], problem.xu[:, np.newaxis]), axis=1
+)
 # endregion
 
-# region: == Define Algorithm ==
+# region: == Define GA ==
 sampling = MixedVariableSampling(
     problem.input_mask, {
         "real": get_sampling("real_random"),
@@ -139,29 +157,41 @@ while obj.has_next():
   obj.next()
 
   # check performance
-  if (obj.n_gen - 1) % args.check_generation == 0:
+  if obj.n_gen % args.check_generation == 0:
     n_gen = obj.n_gen
     n_nds = len(obj.opt)
     CV = obj.opt.get('CV').min()
     print(f"gen[{n_gen}]: n_nds: {n_nds} CV: {CV}")
     features = -obj.opt.get('F')
-    if n_obj == 3:
-      fig = plot_result_3D(features, objective_names, axis_bound=None)
-    else:
-      fig = plot_result_pairwise(
-          n_obj, features, objective_names, axis_bound=None
-      )
+    fig = plot_result_pairwise(
+        n_obj, features, objective_names, axis_bound=objectives_bound
+    )
     fig.supxlabel(str(n_gen), fontsize=20)
     fig.tight_layout()
     fig.savefig(os.path.join(fig_progress_folder, str(n_gen) + '.png'))
 
-    X = obj.opt.get('X')
-    out = {}
-    problem._evaluate(X, out, get_score=True)
-    fig = plot_single_objective(out["F"].reshape(-1), dict(o1="Score"))
+    component_values = obj.opt.get('X')
+    # out = {}
+    # problem._evaluate(component_values, out, get_score=True)
+    # print(out["F"].reshape(-1))
+    scores = obj.opt.get('scores')
+    fig = plot_single_objective(
+        scores.reshape(-1), dict(o1="Score"), axis_bound=scores_bound
+    )
+    fig.supxlabel(str(n_gen), fontsize=20)
     fig.tight_layout()
     fig.savefig(
         os.path.join(fig_progress_folder, 'score_' + str(n_gen) + '.png')
+    )
+
+    fig = plot_result_pairwise(
+        len(problem.input_names), component_values, input_names_dict,
+        axis_bound=inputs_bound, n_col_default=5, subfigsz=4, fsz=16, sz=20
+    )
+    fig.supxlabel(str(n_gen), fontsize=20)
+    fig.tight_layout()
+    fig.savefig(
+        os.path.join(fig_progress_folder, 'inputs_' + str(n_gen) + '.png')
     )
     plt.close('all')
 
@@ -173,28 +203,16 @@ print("--> EXEC TIME: {}".format(time.time() - start_time))
 # region: finally obtain the result object
 res = obj.result()
 res_to_save = dict(X=res.X, F=res.F, pop=res.pop, opt=res.opt)
-picklePath = os.path.join(out_folder, timestr + '.pkl')
-with open(picklePath, 'wb') as output:
+pickle_path = os.path.join(out_folder, timestr + '.pkl')
+with open(pickle_path, 'wb') as output:
   pickle.dump(res_to_save, output, pickle.HIGHEST_PROTOCOL)
-print(picklePath)
+print(pickle_path)
 
 features = -res.F
 fig = plot_result_pairwise(
-    n_obj, features, objective_names, axis_bound=None, n_col_default=5,
-    subfigsz=4, fsz=16, sz=20
+    n_obj, features, objective_names, axis_bound=objectives_bound,
+    n_col_default=5, subfigsz=4, fsz=16, sz=20
 )
 fig.tight_layout()
 fig.savefig(os.path.join(fig_folder, 'obj_pairwise.png'))
-
-print("\npick the design in the optimal front that has maximal objective 1.")
-indices = np.argsort(features[:, 0])
-features = features[indices]
-with np.printoptions(formatter={'float': '{: 2.2f}'.format}):
-  print(features[-1])
-
-print()
-X = res.X
-out = {}
-problem._evaluate(X, out, get_score=True)
-print(out["F"].reshape(-1))
 # endregion

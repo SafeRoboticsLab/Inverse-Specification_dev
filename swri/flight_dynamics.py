@@ -1,4 +1,4 @@
-#Template Processor
+# Template Processor
 
 # uses $name to get and put variables -
 
@@ -10,7 +10,6 @@ import shutil
 import numpy as np
 import subprocess
 
-from functools import partial
 from multiprocessing.dummy import Pool
 
 

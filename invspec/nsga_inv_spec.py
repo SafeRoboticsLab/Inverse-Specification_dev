@@ -9,19 +9,15 @@ from pymoo.operators.sampling.rnd import FloatRandomSampling
 from pymoo.operators.selection.tournament import compare, TournamentSelection
 from pymoo.util.display import MultiObjectiveDisplay
 from pymoo.util.dominator import Dominator
-from pymoo.util.misc import find_duplicates, has_feasible
+from pymoo.util.misc import has_feasible
 from pymoo.util.nds.non_dominated_sorting import NonDominatedSorting
 from pymoo.util.randomized_argsort import randomized_argsort
 from pymoo.core.population import Population
-
-# TODO: 1. sampling instead of deterministic selection
-# TODO: 2. warmup by standard GA
-# TODO: 3. duplicate elimination by objectives
+from pymoo.algorithms.moo.nsga2 import calc_crowding_distance
 
 
 def binary_tournament(pop, P, algorithm, **kwargs):
-  BETA = algorithm.beta
-  BASE_PROB_COEFF = algorithm.base_prob_coeff
+  # BASE_PROB_COEFF = algorithm.base_prob_coeff
   if P.shape[1] != 2:
     raise ValueError("Only implemented for binary tournament!")
 
@@ -38,18 +34,16 @@ def binary_tournament(pop, P, algorithm, **kwargs):
           a, pop[a].CV, b, pop[b].CV, method='smaller_is_better',
           return_random_if_equal=True
       )
-
     # both solutions are feasible
     else:
-
-      if tournament_type == 'comp_by_dom_and_fitness':
+      if tournament_type == 'dominance':
         rel = Dominator.get_relation(pop[a].F, pop[b].F)
         if rel == 1:
           S[i] = a
         elif rel == -1:
           S[i] = b
 
-      elif tournament_type == 'comp_by_rank_and_fitness':
+      elif tournament_type == 'rank':
         S[i] = compare(
             a, pop[a].get("rank"), b, pop[b].get("rank"),
             method='smaller_is_better'
@@ -59,17 +53,25 @@ def binary_tournament(pop, P, algorithm, **kwargs):
         raise Exception("Unknown tournament type.")
 
       # if rank or domination relation didn't make a decision compare by
-      # human fitness
+      # human fitness or crowding distance
       if np.isnan(S[i]):
-        # S[i] = compare(a, pop[a].get("fitness"), b,
-        #     pop[b].get("fitness"), method='larger_is_better',
-        #     return_random_if_equal=True)
-        metric = pop[P[i]].get('fitness')
-        prob_un = np.exp(BETA * metric)
-        prob_fitness = prob_un / np.sum(prob_un)
-        prob_basis = 1 / 2
-        prob = prob_fitness * (1-BASE_PROB_COEFF) + prob_basis*BASE_PROB_COEFF
-        S[i] = np.random.choice(2, size=1, replace=False, p=prob)
+        tournament_type_second = kwargs.get("tournament_type_second")
+        if tournament_type_second == "fitness":
+          metric = pop[P[i]].get('fitness')
+          score_diff = np.clip(
+              algorithm.beta * (metric[0] - metric[1]), -20, 20
+          )
+          prob = 1 / (1 + np.exp(score_diff))
+          # prob_basis = 1 / 2
+          # prob = prob_fitness * (
+          #     1-BASE_PROB_COEFF
+          # ) + prob_basis*BASE_PROB_COEFF
+          S[i] = np.random.choice(2, size=1, replace=False, p=[prob, 1 - prob])
+        else:
+          S[i] = compare(
+              a, pop[a].get("crowding"), b, pop[b].get("crowding"),
+              method='larger_is_better', return_random_if_equal=True
+          )
 
   return S[:, None].astype(int, copy=False)
 
@@ -96,30 +98,38 @@ class RankAndHumanFitnessSurvival(Survival):
     fronts = self.nds.do(F, n_stop_if_ranked=n_survive)
 
     for k, front in enumerate(fronts):
+      crowding_dist = calc_crowding_distance(F[front, :])
+      if survival_type == "crowding":
+        main_metric = crowding_dist
+      else:
+        main_metric = pop[front].get('fitness')
 
       # save rank in the individual class
-      for _, i in enumerate(front):
+      for j, i in enumerate(front):
         pop[i].set("rank", k)
+        pop[i].set("crowding", crowding_dist[j])
 
       # current front sorted by fitness if splitting
       if len(survivors) + len(front) > n_survive:
         n_left = n_survive - len(survivors)
-        if survival_type == 'crowd':
-          metric = calc_crowding_distance(F[front, :])
-          for j, i in enumerate(front):
-            pop[i].set("crowding", metric[j])
-          I = randomized_argsort(metric, order='descending')
+        if survival_type == "crowding":
+          I = randomized_argsort(main_metric, order='descending')
           I = I[:n_left]
-        else:
-          metric = pop[front].get('fitness')
+        # elif survival_type == 'crowd_fitness':
+        #   metric_fit = pop[front].get('fitness')
+        #   metric_crowd = calc_crowding_distance(F[front, :])
+        #   survival_type = kwargs.get("survival_coeff")
+        #   I = randomized_argsort(metric, order='descending')
+        #   I = I[:n_left]
+        else:  # fitness only
           if survival_type == 'stoc':
-            prob_un = np.exp(BETA * metric)
+            prob_un = np.exp(BETA * main_metric)
             prob = prob_un / np.sum(prob_un)
             I = np.random.choice(
                 len(front), size=n_left, replace=False, p=prob
             )
           elif survival_type == 'noisy_stoc':
-            prob_un = np.exp(BETA * metric)
+            prob_un = np.exp(BETA * main_metric)
             prob_fitness = prob_un / np.sum(prob_un)
             prob_basis = 1 / len(front)
             prob = (
@@ -129,7 +139,7 @@ class RankAndHumanFitnessSurvival(Survival):
                 len(front), size=n_left, replace=False, p=prob
             )
           elif survival_type == 'det':
-            I = randomized_argsort(metric, order='descending')
+            I = randomized_argsort(main_metric, order='descending')
             I = I[:n_left]
           else:
             raise ValueError('Unsupported survival type')
@@ -158,7 +168,7 @@ class NSGAInvSpec(GeneticAlgorithm):
       display=MultiObjectiveDisplay(),
       warmup=0,
       survival=RankAndHumanFitnessSurvival(),
-      survival_type='stoc',
+      survival_type='det',
       tournament_type=None,
       beta=10.,
       base_prob_coeff=0.5,
@@ -175,7 +185,7 @@ class NSGAInvSpec(GeneticAlgorithm):
     )
 
     if tournament_type is None:
-      self.tournament_type = 'comp_by_dom_and_fitness'
+      self.tournament_type = 'dominance'
     else:
       self.tournament_type = tournament_type
     self.warmup = warmup
@@ -219,18 +229,46 @@ class NSGAInvSpec(GeneticAlgorithm):
     """
     self.pop = self.survival.do(
         self.problem, self.pop, n_survive=self.pop_size, algorithm=self,
-        survival_type='crowd'
+        survival_type="crowding"
     )
     for _, ind in enumerate(self.pop):
       ind.set("fitness", 1.)
+
+  def _infill(self):
+    """
+    Gets the candidate population for the next generation.
+
+    Returns:
+        [type]: [description]
+    """
+    # do the mating using the current population
+    if self.n_gen <= self.warmup:
+      tournament_type_second = "crowding"
+    else:
+      tournament_type_second = "fitness"
+    off = self.mating.do(
+        self.problem, self.pop, self.n_offsprings, algorithm=self,
+        tournament_type_second=tournament_type_second
+    )
+
+    # if the mating could not generate any new offspring (duplicate elimination might make that happen)
+    if len(off) == 0:
+      self.termination.force_termination = True
+      return
+
+    # if not the desired number of offspring could be created
+    elif len(off) < self.n_offsprings:
+      if self.verbose:
+        print(
+            "WARNING: Mating could not produce the required number of (unique) offsprings!"
+        )
+
+    return off
 
   def _advance(self, infills, **kwargs):
     """
     Eliminates the population based on the survivial and assign the fitness
     scores.
-
-    Args:
-        infills ([type]): [description]
     """
     # merge the offsprings with the current population
     if infills is not None:
@@ -240,7 +278,7 @@ class NSGAInvSpec(GeneticAlgorithm):
     if self.n_gen <= self.warmup:
       self.pop = self.survival.do(
           self.problem, self.pop, n_survive=self.pop_size, algorithm=self,
-          survival_type='crowd'
+          survival_type="crowding"
       )
       for _, ind in enumerate(self.pop):
         ind.set("fitness", 1.)
@@ -251,66 +289,6 @@ class NSGAInvSpec(GeneticAlgorithm):
           self.problem, self.pop, n_survive=self.pop_size, algorithm=self,
           survival_type=self.survival_type
       )
-
-
-def calc_crowding_distance(F, filter_out_duplicates=True):
-  n_points, n_obj = F.shape
-
-  if n_points <= 2:
-    return np.full(n_points, np.inf)
-
-  else:
-
-    if filter_out_duplicates:
-      # filter out solutions which are duplicates - duplicates get a zero
-      indicator = find_duplicates(F, epsilon=1e-24)
-      is_unique = np.where(np.logical_not(indicator))[0]
-    else:
-      # set every point to be unique without checking it
-      is_unique = np.arange(n_points)
-
-    # index the unique points of the array
-    _F = F[is_unique]
-
-    # sort each column and get index
-    I = np.argsort(_F, axis=0, kind='mergesort')
-
-    # sort the objective space values for the whole matrix
-    _F = _F[I, np.arange(n_obj)]
-
-    # calculate the distance from each point to the last and next
-    dist = np.row_stack([_F, np.full(n_obj, np.inf)]) - \
-        np.row_stack([np.full(n_obj, -np.inf), _F])
-
-    # calculate the norm for each objective -
-    # set to NaN if all values are equal
-    norm = np.max(_F, axis=0) - np.min(_F, axis=0)
-    norm[norm == 0] = np.nan
-
-    # prepare the distance to last and next vectors
-    dist_to_last, dist_to_next = dist, np.copy(dist)
-    dist_to_last = dist_to_last[:-1] / norm
-    dist_to_next = dist_to_next[1:] / norm
-
-    # if we divide by zero because all values in one columns are equal
-    # replace by none
-    dist_to_last[np.isnan(dist_to_last)] = 0.0
-    dist_to_next[np.isnan(dist_to_next)] = 0.0
-
-    # sum up the distance to next and last and norm by objectives - also
-    # reorder from sorted list
-    J = np.argsort(I, axis=0)
-    tmp1 = dist_to_last[J, np.arange(n_obj)]
-    tmp2 = dist_to_next[J, np.arange(n_obj)]
-    _cd = np.sum(tmp1 + tmp2, axis=1) / n_obj
-
-    # save the final vector which sets the crowding distance for duplicates
-    # to zero to be eliminated
-    crowding = np.zeros(n_points)
-    crowding[is_unique] = _cd
-
-  # crowding[np.isinf(crowding)] = 1e+14
-  return crowding
 
 
 parse_doc_string(NSGAInvSpec.__init__)
