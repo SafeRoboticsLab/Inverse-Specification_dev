@@ -1,6 +1,5 @@
 # Please contact the author(s) of this library if you have any questions.
 # Authors: Kai-Chieh Hsu ( kaichieh@princeton.edu )
-# python3 auv_invspec_nn.py -nw 0 -ng 200 -ip 25 -nq 3 -mq 20 -n test
 
 import time
 import os
