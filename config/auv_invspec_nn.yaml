@@ -33,6 +33,6 @@ NN:
 
 HUMAN:
   BETA: 10
-  TYPE: range_hard
+  TYPE: range_hard  # speed or range or range_hard (range with hard constraints)
   PERFECT_RANK: true
   INDIFFERENCE: 0.01
