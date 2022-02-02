@@ -55,7 +55,7 @@ class RewardGP(Inference):
     self.initial_point = np.array(initial_point)  # f(initial point set) = 0
     self.fmode = None
     # response function
-    self.noise_probit = CONFIG.NOISE_PROBIT
+    self.confidence_coeff = CONFIG.BETA
 
   #region: == Interface with GA ==
   def _eval_query(self, input, **kwargs):
@@ -125,21 +125,23 @@ class RewardGP(Inference):
     else:
       Sigma = self.post_cov(Xstar)
       mui, muj = self.post_mean(Xstar)
-      sigmap = np.sqrt(
-          np.pi * np.log(2) / 2
-      ) * self.noise_probit  # sqrt(pi sigma^2 ln2 / 2)
-      g_12 = Sigma[0, 0] + Sigma[1, 1] - 2 * Sigma[0, 1]
+      delta_mu = mui - muj
 
-      result1 = self.bin_ent(
-          self.response((mui-muj) / (np.sqrt(2 * self.noise_probit**2 + g_12)))
+      c_1 = Sigma[0, 0] + Sigma[1, 1] - 2 * Sigma[0, 1]
+
+      tmp = 1 / (self.confidence_coeff**2) + np.pi / 8 * c_1
+      result1 = self.bin_ent(self.response(delta_mu / tmp))
+
+      tmp = 4 / (self.confidence_coeff**2) * np.log(2)
+      c_2 = (
+          np.exp(-0.5 * delta_mu**2 /
+                 (tmp+c_1)) * np.sqrt(tmp) / np.sqrt(tmp + c_1)
       )
-      result2 = sigmap / (np.sqrt(sigmap ** 2 + g_12)) * \
-          np.exp(-0.5 * (mui - muj)**2 / (sigmap ** 2 + g_12))
 
-      if np.isnan(result1 - result2):
+      if np.isnan(result1 - c_2):
         return 0.
       else:
-        return result1 - result2
+        return result1 - c_2
 
   def kernel(self, xi, xj):
     """kernel function. Currently we only support RBF type kernel.
@@ -200,7 +202,7 @@ class RewardGP(Inference):
     def obj(GP_values, feedbacks, Kinv):
       numQueries = int(len(GP_values) / 2)
       diffVec = GP_values[:numQueries] - GP_values[numQueries:]
-      ys = np.multiply(diffVec / self.noise_probit, feedbacks)
+      ys = np.multiply(diffVec * self.confidence_coeff, feedbacks)
       phiVec = stats.norm.cdf(ys)
       log_likelihood = np.sum(np.log(phiVec))
 
@@ -212,7 +214,7 @@ class RewardGP(Inference):
       numQueries = int(len(GP_values) / 2)
       _jac = np.zeros(2 * numQueries)
       for i in range(numQueries):
-        kappa = feedbacks[i] / self.noise_probit
+        kappa = feedbacks[i] * self.confidence_coeff
         diff = GP_values[i] - GP_values[i + numQueries]
         y = kappa * diff
         _g = self.dot_response(y) / self.response(y) * kappa
@@ -258,11 +260,11 @@ class RewardGP(Inference):
     numQueries = int(len(GP_values) / 2)
     _W = np.zeros((2 * numQueries, 2 * numQueries))
     for i in range(numQueries):
-      kappa = feedbacks[i] / self.noise_probit
+      kappa = feedbacks[i] * self.confidence_coeff
       diff = GP_values[i] - GP_values[i + numQueries]
       y = kappa * diff
       _h = self.ddot_response(y) * self.response(y) - self.dot_response(y)**2
-      h = _h / ((self.noise_probit * self.response(y))**2)
+      h = _h * (self.confidence_coeff**2) / (self.response(y)**2)
       _W[i, i] = -h
       _W[i, i + numQueries] = h
       _W[i + numQueries, i] = h

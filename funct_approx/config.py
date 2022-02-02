@@ -4,9 +4,7 @@
 
 class BaseConfig():
 
-  def __init__(
-      self, SEED=0, MEMORY_CAPACITY=100, MAX_QUERIES=100, MAX_QUERIES_PER=3
-  ):
+  def __init__(self, SEED=0, MEMORY_CAPACITY=100):
     """
 
     Args:
@@ -14,24 +12,18 @@ class BaseConfig():
             Defaults to 0
         MEMORY_CAPACITY (int, optional): the size of replay buffer.
             Defaults to 100
-        MAX_QUERIES (int, optional): maximal number of queries.
-            Defaults to 100
-        MAX_QUERIES_PER (int, optional): maximal number of queries per update.
-            Defaults to 3
     """
     self.SEED = SEED
-    self.MAX_QUERIES = MAX_QUERIES
     self.MEMORY_CAPACITY = MEMORY_CAPACITY
-    self.MAX_QUERIES_PER = MAX_QUERIES_PER
 
 
 class NNConfig(BaseConfig):
 
   def __init__(
-      self, SEED=0, MEMORY_CAPACITY=100, MAX_QUERIES=100, MAX_QUERIES_PER=3,
-      DEVICE='cpu', ARCHITECTURE=[20], ACTIVATION='Tanh', MAX_UPDATES=10000,
-      BATCH_SIZE=32, MAX_MODEL=50, LR=1e-3, LR_END=1e-4, LR_PERIOD=1000,
-      LR_DECAY=0.5, TRADEOFF=0.1, MAX_GRAD_NORM=1.
+      self, SEED=0, MEMORY_CAPACITY=100, DEVICE='cpu', ARCHITECTURE=[20],
+      ACTIVATION='Tanh', MAX_UPDATES=10000, BATCH_SIZE=32, MAX_MODEL=50,
+      LR=1e-3, LR_END=1e-4, LR_PERIOD=1000, LR_DECAY=0.5, TRADEOFF=0.1,
+      MAX_GRAD_NORM=1.
   ):
     """
     Args:
@@ -61,10 +53,7 @@ class NNConfig(BaseConfig):
         MAX_GRAD_NORM (float, optional): Maximum gradient norm.
             Defaults to 5.
     """
-    super().__init__(
-        SEED=SEED, MEMORY_CAPACITY=MEMORY_CAPACITY, MAX_QUERIES=MAX_QUERIES,
-        MAX_QUERIES_PER=MAX_QUERIES_PER
-    )
+    super().__init__(SEED=SEED, MEMORY_CAPACITY=MEMORY_CAPACITY)
 
     self.MAX_UPDATES = MAX_UPDATES
 
@@ -88,28 +77,20 @@ class NNConfig(BaseConfig):
 class GPConfig(BaseConfig):
 
   def __init__(
-      self, SEED=0, MEMORY_CAPACITY=100, MAX_QUERIES=100, MAX_QUERIES_PER=3,
-      HORIZONTAL_LENGTH=1., VERTICAL_VARIATION=1., NOISE_LEVEL=0.1,
-      NOISE_PROBIT=0.05
+      self, SEED=0, MEMORY_CAPACITY=100, HORIZONTAL_LENGTH=1.,
+      VERTICAL_VARIATION=1., NOISE_LEVEL=0.1, BETA=0.05
   ):
     """
 
     Args:
-        HORIZONTAL_LENGTH (float, optional): ell in kernel.
-            Defaults to 1..
-        VERTICAL_VARIATION (float, optional): sigma_f in kernel.
-            Defaults to 1..
-        NOISE_LEVEL (float, optional): sigma_n in kernel.
-            Defaults to 0.1.
-        NOISE_PROBIT (float, optional): sigma in probit regression
-            Defaults to 0.05.
+        HORIZONTAL_LENGTH (float, optional): ell in kernel. Defaults to 1..
+        VERTICAL_VARIATION (float, optional): sigma_f in kernel. Defaults to 1.
+        NOISE_LEVEL (float, optional): sigma_n in kernel. Defaults to 0.1.
+        BETA (float, optional): confidence coefficient. Defaults to 0.05.
     """
-    super().__init__(
-        SEED=SEED, MEMORY_CAPACITY=MEMORY_CAPACITY, MAX_QUERIES=MAX_QUERIES,
-        MAX_QUERIES_PER=MAX_QUERIES_PER
-    )
+    super().__init__(SEED=SEED, MEMORY_CAPACITY=MEMORY_CAPACITY)
 
     self.HORIZONTAL_LENGTH = HORIZONTAL_LENGTH
     self.VERTICAL_VARIATION = VERTICAL_VARIATION
     self.NOISE_LEVEL = NOISE_LEVEL
-    self.NOISE_PROBIT = NOISE_PROBIT
+    self.BETA = BETA
