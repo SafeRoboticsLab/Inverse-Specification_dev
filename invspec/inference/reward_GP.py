@@ -33,6 +33,21 @@ from scipy.optimize import minimize, Bounds
 from invspec.inference.inference import Inference
 
 
+def logistic(x, coeff):
+  """
+  Equation:
+      f(x, coeff) = 1 / (1 + exp(-x/coeff))
+
+  Args:
+      x (np.ndarray): random variable.
+      coeff (float): 1/coeff is the logistic growth rate of the curve.
+
+  Returns:
+      np.ndarray
+  """
+  return 1 / (1 + np.exp(-x / coeff))
+
+
 class RewardGP(Inference):
 
   def __init__(
@@ -54,8 +69,12 @@ class RewardGP(Inference):
     self.noise_level = CONFIG.NOISE_LEVEL
     self.initial_point = np.array(initial_point)  # f(initial point set) = 0
     self.fmode = None
-    # response function
+    # response function: noise_probit = 1/confidence_coeff
     self.confidence_coeff = CONFIG.BETA
+    self.mode = 'Boltzmann'
+    # self.mode = 'probit'
+    assert self.mode == 'Boltzmann' or self.mode == 'probit',\
+        "unsupported mode!"
 
   #region: == Interface with GA ==
   def _eval_query(self, input, **kwargs):
@@ -92,14 +111,15 @@ class RewardGP(Inference):
 
     Returns:
         scipy OptimizeResult.
+        list: training progress (objective values).
     """
     self.K = self.get_K()
     self.Kinv = np.linalg.inv(self.K + np.identity(self.K.shape[0]) * 1e-8)
-    res, objProgress = self.get_mode()
+    res, train_progress = self.get_mode()
     self.fmode = res.x
     self.W = self.get_W()
 
-    return res, objProgress
+    return res, train_progress
 
   # def updateHyperParameters(self):
   #     ell_init = np.sqrt(1 / (2*self.theta))
@@ -129,14 +149,24 @@ class RewardGP(Inference):
 
       c_1 = Sigma[0, 0] + Sigma[1, 1] - 2 * Sigma[0, 1]
 
-      tmp = 1 / (self.confidence_coeff**2) + np.pi / 8 * c_1
-      result1 = self.bin_ent(self.response(delta_mu / tmp))
+      if self.mode == 'Boltzmann':
+        coeff = 1 / (self.confidence_coeff**2) + np.pi / 8 * c_1
+        result1 = self.bin_ent(logistic(x=delta_mu, coeff=coeff))
 
-      tmp = 4 / (self.confidence_coeff**2) * np.log(2)
-      c_2 = (
-          np.exp(-0.5 * delta_mu**2 /
-                 (tmp+c_1)) * np.sqrt(tmp) / np.sqrt(tmp + c_1)
-      )
+        tmp = 4 / (self.confidence_coeff**2) * np.log(2)
+        c_2 = (
+            np.exp(-0.5 * delta_mu**2 /
+                   (tmp+c_1)) * np.sqrt(tmp) / np.sqrt(tmp + c_1)
+        )
+      else:
+        noise_probit = 1 / self.confidence_coeff
+        coeff = np.sqrt(2 * noise_probit**2 + c_1)
+        result1 = stats.norm.cdf(delta_mu / coeff)
+
+        tmp = np.pi * np.log(2) * noise_probit**2
+        tmp_1 = tmp + 2*c_1
+        tmp_2 = np.sqrt(tmp / tmp_1)
+        c_2 = np.exp(-delta_mu**2 / tmp_1) * tmp_2
 
       if np.isnan(result1 - c_2):
         return 0.
@@ -197,56 +227,56 @@ class RewardGP(Inference):
 
     Returns:
         scipy OptimizeResult.
+        list: training progress (objective values).
     """
 
     def obj(GP_values, feedbacks, Kinv):
-      numQueries = int(len(GP_values) / 2)
-      diffVec = GP_values[:numQueries] - GP_values[numQueries:]
-      ys = np.multiply(diffVec * self.confidence_coeff, feedbacks)
-      phiVec = stats.norm.cdf(ys)
-      log_likelihood = np.sum(np.log(phiVec))
+      num_queries = int(len(GP_values) / 2)
+      delta_rwd = GP_values[:num_queries] - GP_values[num_queries:]
+      ys, _ = self.get_rv(delta_rwd, feedbacks, self.confidence_coeff)
+      likelihood_vec = self.response(ys)
+      log_likelihood = np.sum(np.log(likelihood_vec))
 
       f_tmp = GP_values.reshape(-1, 1)
       log_prior = -0.5 * np.matmul(GP_values, np.matmul(Kinv, f_tmp))
-      return (-log_likelihood - log_prior) / numQueries
+      return (-log_likelihood - log_prior) / num_queries
 
     def jac(GP_values, feedbacks, Kinv):
-      numQueries = int(len(GP_values) / 2)
-      _jac = np.zeros(2 * numQueries)
-      for i in range(numQueries):
-        kappa = feedbacks[i] * self.confidence_coeff
-        diff = GP_values[i] - GP_values[i + numQueries]
-        y = kappa * diff
+      num_queries = int(len(GP_values) / 2)
+      _jac = np.zeros(2 * num_queries)
+      for i in range(num_queries):
+        delta_rwd = GP_values[i] - GP_values[i + num_queries]
+        y, kappa = self.get_rv(delta_rwd, feedbacks[i], self.confidence_coeff)
         _g = self.dot_response(y) / self.response(y) * kappa
         _jac[i] = _g
-        _jac[i + numQueries] = -_g
-      return (-_jac + np.matmul(Kinv, GP_values)) / numQueries
+        _jac[i + num_queries] = -_g
+      return (-_jac + np.matmul(Kinv, GP_values)) / num_queries
       # return (-_jac + np.matmul(Kinv, GP_values))
 
-    objProgress = []
+    train_progress = []
 
     def callback(x):
-      objProgress.append(obj(x, feedbacks, Kinv))
+      train_progress.append(obj(x, feedbacks, Kinv))
 
-    numQueries = len(self.memory)
+    num_queries = len(self.memory)
     _, _, feedbacks = self.get_all_query_feedback()
     Kinv = self.Kinv
 
     #= Start Optimization
-    x0 = np.zeros(2 * numQueries)
+    x0 = np.zeros(2 * num_queries)
     if self.fmode is not None and warmup:
       half_length = int(len(self.fmode) / 2)
       x0[:half_length] = self.fmode[:half_length]
-      x0[numQueries:numQueries + half_length] = self.fmode[half_length:]
+      x0[num_queries:num_queries + half_length] = self.fmode[half_length:]
     options = {}
     options['maxiter'] = maxIter
     options['disp'] = False
-    bounds = Bounds(np.zeros(2 * numQueries), np.ones(2 * numQueries))
+    bounds = Bounds(np.zeros(2 * num_queries), np.ones(2 * num_queries))
     res = minimize(
         obj, x0=x0, jac=jac, bounds=bounds, callback=callback,
         args=(feedbacks, Kinv), tol=tol, options=options
     )
-    return res, objProgress
+    return res, train_progress
 
   def get_W(self):
     """
@@ -257,18 +287,17 @@ class RewardGP(Inference):
     """
     _, _, feedbacks = self.get_all_query_feedback()
     GP_values = self.fmode
-    numQueries = int(len(GP_values) / 2)
-    _W = np.zeros((2 * numQueries, 2 * numQueries))
-    for i in range(numQueries):
-      kappa = feedbacks[i] * self.confidence_coeff
-      diff = GP_values[i] - GP_values[i + numQueries]
-      y = kappa * diff
+    num_queries = int(len(GP_values) / 2)
+    _W = np.zeros((2 * num_queries, 2 * num_queries))
+    for i in range(num_queries):
+      delta_rwd = GP_values[i] - GP_values[i + num_queries]
+      y, kappa = self.get_rv(delta_rwd, feedbacks[i], self.confidence_coeff)
       _h = self.ddot_response(y) * self.response(y) - self.dot_response(y)**2
-      h = _h * (self.confidence_coeff**2) / (self.response(y)**2)
+      h = _h * (kappa**2) / (self.response(y)**2)
       _W[i, i] = -h
-      _W[i, i + numQueries] = h
-      _W[i + numQueries, i] = h
-      _W[i + numQueries, i + numQueries] = -h
+      _W[i, i + num_queries] = h
+      _W[i + num_queries, i] = h
+      _W[i + num_queries, i + num_queries] = -h
     return _W
 
   def kstar(self, Xstar):
@@ -402,47 +431,84 @@ class RewardGP(Inference):
 
     return np.concatenate((q_1s, q_2s), axis=0)
 
-  @staticmethod
-  def response(x):
+  def get_rv(self, delta_rwd, feedback, confidence_coeff):
     """
-    Ssquashes its argument into the range [0, 1]. We choose the cumulative
-    density function of a standard normal distribution. This is also known as
-    the probit regression.
+    We provide two likelihood models:
+        (1) the cumulative density function of a standard normal distribution.
+            This is also known as the probit regression.
+        (2) Boltzmann noisy rationality, which can be rewritten as a logistic
+            function.
 
     Args:
-        x (float): noise which we assume to be R.V. of N(0, 1).
+        delta_rwd (np.ndarray or float): reward difference.
+        feedback (np.ndarray or float): human feedback.
+        confidence_coeff (float): confidence coefficient. noise of probit model
+            is equal to 1/coeff.
 
     Returns:
-        float: in this case, Phi(x).
+        np.ndarray or float: the variable for the response function.
+        float: coefficient of the reward difference.
     """
-    return stats.norm.cdf(x)
+    if self.mode == "Boltzmann":
+      kappa = feedback * confidence_coeff
+    else:
+      kappa = feedback / (np.sqrt(2) * confidence_coeff)
+    return kappa * delta_rwd, kappa
 
-  @staticmethod
-  def dot_response(x):
+  def response(self, y):
+    """
+    Squashes its argument into the range [0, 1]. We provide two options.
+        (1) the cumulative density function of a standard normal distribution.
+            This is also known as the probit regression.
+        (2) Boltzmann noisy rationality, which can be rewritten as a logistic
+            function.
+
+    Args:
+        y (np.ndarray or float): observed variables for the response function,
+            which is equal to the delta_rwd times coefficient.
+
+    Returns:
+        np.ndarray or float: the likelihood of this random variable.
+    """
+
+    if self.mode == "Boltzmann":
+      return logistic(y, 1)
+    else:
+      return stats.norm.cdf(y)
+
+  def dot_response(self, y):
     """The first derivative of the response function.
 
     Args:
-        x (float): noise which we assume to be R.V. of N(0, 1).
+        y (np.ndarray or float): observed variables for the response function,
+            which is equal to the delta_rwd times coefficient.
 
     Returns:
-        float: the first derivative, in this case, N(x).
+        np.ndarray or float: the first derivative.
     """
-    return stats.norm.pdf(x)
+    if self.mode == "Boltzmann":
+      return logistic(y, 1) * (1 - logistic(y, 1))
+    else:
+      return stats.norm.pdf(y)
 
-  @staticmethod
-  def ddot_response(x):
+  def ddot_response(self, y):
     """The second derivative of the response function.
 
     Args:
-        x (float): noise which we assume to be R.V. of N(0, 1).
+        y (np.ndarray or float): observed variables for the response function,
+            which is equal to the delta_rwd times coefficient.
 
     Returns:
-        float: the second derivative, in this case, -x * N(x).
+        float: the second derivative.
     """
-    return (-x) * stats.norm.pdf(x)
+    if self.mode == "Boltzmann":
+      logit = logistic(y, 1)
+      return logit * (1-logit) * (1 - 2*logit)
+    else:
+      return (-y) * stats.norm.pdf(y)
 
   @staticmethod
-  def bin_ent(p):  #
+  def bin_ent(p):
     """Binary entropy function.
 
     Args:
