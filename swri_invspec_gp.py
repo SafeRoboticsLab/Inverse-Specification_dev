@@ -51,7 +51,9 @@ def main(config_file, config_dict):
   config_gp = config_dict['GP']
   config_human = config_dict['HUMAN']
 
-  out_folder = os.path.join('scratch', 'swri', 'invspec_gp')
+  out_folder = os.path.join(
+      'scratch', 'swri', 'invspec_gp', config_inv_spec.QUERY_SELECTOR_TYPE
+  )
   if config_general.NAME is not None:
     out_folder = os.path.join(out_folder, config_general.NAME)
   fig_folder = os.path.join(out_folder, 'figure')
