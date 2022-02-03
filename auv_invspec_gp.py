@@ -156,12 +156,10 @@ def main(config_file, config_dict):
   print("\n== InvSpec Construction ==")
   CONFIG = GPConfig(
       SEED=config_general.SEED,
-      MAX_QUERIES=config_inv_spec.MAX_QUERIES,
-      MAX_QUERIES_PER=config_inv_spec.MAX_QUERIES_PER,
       HORIZONTAL_LENGTH=config_gp.HORIZONTAL_LENGTH,
       VERTICAL_VARIATION=config_gp.VERTICAL_VARIATION,
       NOISE_LEVEL=config_gp.NOISE_LEVEL,
-      NOISE_PROBIT=config_gp.NOISE_PROBIT,
+      BETA=config_inv_spec.BETA,
   )
   print(vars(CONFIG), '\n')
 
@@ -260,8 +258,8 @@ def main(config_file, config_dict):
       )  # we want to maximize
       components = obj.pop.get('X')
 
-      n_want = CONFIG.MAX_QUERIES_PER
-      if n_acc_fb + n_want > CONFIG.MAX_QUERIES:
+      n_want = config_inv_spec.MAX_QUERIES_PER
+      if n_acc_fb + n_want > config_inv_spec.MAX_QUERIES:
         n_ask = n_want - n_acc_fb
       else:
         n_ask = n_want

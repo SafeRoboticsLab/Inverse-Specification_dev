@@ -51,7 +51,9 @@ def main(config_file, config_dict):
   config_gp = config_dict['GP']
   config_human = config_dict['HUMAN']
 
-  out_folder = os.path.join('scratch', 'swri', 'invspec_gp')
+  out_folder = os.path.join(
+      'scratch', 'swri', 'invspec_gp', config_inv_spec.QUERY_SELECTOR_TYPE
+  )
   if config_general.NAME is not None:
     out_folder = os.path.join(out_folder, config_general.NAME)
   fig_folder = os.path.join(out_folder, 'figure')
@@ -172,12 +174,10 @@ def main(config_file, config_dict):
   print("\n== InvSpec Construction ==")
   CONFIG = GPConfig(
       SEED=config_general.SEED,
-      MAX_QUERIES=config_inv_spec.MAX_QUERIES,
-      MAX_QUERIES_PER=config_inv_spec.MAX_QUERIES_PER,
       HORIZONTAL_LENGTH=config_gp.HORIZONTAL_LENGTH,
       VERTICAL_VARIATION=config_gp.VERTICAL_VARIATION,
       NOISE_LEVEL=config_gp.NOISE_LEVEL,
-      NOISE_PROBIT=config_gp.NOISE_PROBIT,
+      BETA=config_inv_spec.BETA,
   )
   print(vars(CONFIG), '\n')
 
@@ -284,8 +284,8 @@ def main(config_file, config_dict):
         features = features_unnormalized
       components = obj.pop.get('X')
 
-      n_want = CONFIG.MAX_QUERIES_PER
-      if n_acc_fb + n_want > CONFIG.MAX_QUERIES:
+      n_want = config_inv_spec.MAX_QUERIES_PER
+      if n_acc_fb + n_want > config_inv_spec.MAX_QUERIES:
         n_ask = n_want - n_acc_fb
       else:
         n_ask = n_want

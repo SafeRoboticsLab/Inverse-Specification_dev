@@ -73,3 +73,6 @@ https://git.isis.vanderbilt.edu/swri/flight-dynamics-model
 ### Objectives
 * battery_capacity, min ??
 * Path_traverse_score_based_on_requirements, max
+
+## Note
+You need to change the file path in the template files, e.g., propeller(1)%prop_fname
