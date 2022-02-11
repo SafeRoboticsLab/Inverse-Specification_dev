@@ -68,3 +68,4 @@ def report_pop_swri(
   )
 
   plt.close('all')
+  return features, component_values, scores

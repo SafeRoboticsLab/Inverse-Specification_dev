@@ -143,8 +143,8 @@ def main(config_file, config_dict):
   )
 
   # termination criterion
-  numGenTotal = config_ga.NUM_GEN
-  termination = get_termination("n_gen", numGenTotal)
+  num_gen_total = config_ga.NUM_GEN
+  termination = get_termination("n_gen", num_gen_total)
   # endregion
 
   # region: == Define Human Simulator ==
@@ -255,11 +255,16 @@ def main(config_file, config_dict):
 
     #= check performance
     if obj.n_gen % config_general.CHECK_GEN == 0:
-      report_pop_swri(
+      features, component_values, scores = report_pop_swri(
           obj, fig_progress_folder, n_acc_fb, objective_names,
           input_names_dict, objectives_bound, scores_bound,
           component_values_bound
       )
+      res_dict = dict(
+          features=features, component_values=component_values, scores=scores
+      )
+      obj_eval_path = os.path.join(obj_eval_folder, 'obj' + str(obj.n_gen))
+      save_obj(res_dict, obj_eval_path)
 
     #= interact with human
     if config_inv_spec.NUM_WARMUP == 0:
@@ -272,7 +277,7 @@ def main(config_file, config_dict):
           and num_after_warmup >= 0
       )
 
-    if time2update and (obj.n_gen < numGenTotal):
+    if time2update and (obj.n_gen < num_gen_total):
       print("\nAt generation {}".format(obj.n_gen))
       features_unnormalized = -obj.pop.get('F')
       if config_inv_spec.INPUT_NORMALIZE:
@@ -337,11 +342,6 @@ def main(config_file, config_dict):
         # 4. store and report
         indices = np.argsort(features[:, 0])
         features = features[indices]
-        save_obj(agent, os.path.join(agent_folder, 'agent' + str(updateTimes)))
-        obj_eval_path = os.path.join(
-            obj_eval_folder, 'obj' + str(updateTimes - 1) + '.npy'
-        )
-        np.save(obj_eval_path, features)
         print()
       else:
         print("Exceed maximal number of queries!", end=' ')

@@ -1,6 +1,6 @@
 # Please contact the author(s) of this library if you have any questions.
 # Authors: Kai-Chieh Hsu ( kaichieh@princeton.edu )
-# example: python3 swri_ga.py -psz 25 -ng 50 -cg 5
+# example: python3 swri_ga.py
 
 import time
 import os
@@ -13,6 +13,7 @@ import pickle
 os.sys.path.append(os.path.join(os.getcwd(), 'src'))
 
 from swri.problem import SWRIElementwiseProblem, SWRIProblem
+from swri.utils import report_pop_swri
 
 # design optimization module
 from pymoo.factory import (
@@ -24,7 +25,7 @@ from pymoo.operators.mixed_variable_operator import (
 )
 
 # others
-from utils import (set_seed, plot_result_pairwise, plot_single_objective)
+from utils import (set_seed, plot_result_pairwise, save_obj)
 
 timestr = time.strftime("%m-%d-%H_%M")
 
@@ -39,10 +40,10 @@ parser.add_argument(
     "-psz", "--pop_size", help="population size", default=25, type=int
 )
 parser.add_argument(
-    "-ng", "--num_gen", help="#generation", default=200, type=int
+    "-ng", "--num_gen", help="#generation", default=50, type=int
 )
 parser.add_argument(
-    "-cg", "--check_generation", help="check period", default=1, type=int
+    "-cg", "--check_generation", help="check period", default=5, type=int
 )
 parser.add_argument(
     "-p", "--problem_type", help="problem type", default='parallel', type=str,
@@ -59,6 +60,8 @@ if args.name is not None:
   out_folder = os.path.join(out_folder, args.name)
 fig_folder = os.path.join(out_folder, 'figure')
 os.makedirs(fig_folder, exist_ok=True)
+obj_eval_folder = os.path.join(out_folder, 'obj_eval')
+os.makedirs(obj_eval_folder, exist_ok=True)
 # endregion
 
 # region: == Define Problem ==
@@ -97,7 +100,7 @@ scores_bound = np.array([-1e-8, 430])
 input_names_dict = {}
 for i in range(len(problem.input_names)):
   input_names_dict['o' + str(i + 1)] = problem.input_names[i][8:]
-inputs_bound = np.concatenate(
+component_values_bound = np.concatenate(
     (problem.xl[:, np.newaxis], problem.xu[:, np.newaxis]), axis=1
 )
 # endregion
@@ -158,42 +161,15 @@ while obj.has_next():
 
   # check performance
   if obj.n_gen % args.check_generation == 0:
-    n_gen = obj.n_gen
-    n_nds = len(obj.opt)
-    CV = obj.opt.get('CV').min()
-    print(f"gen[{n_gen}]: n_nds: {n_nds} CV: {CV}")
-    features = -obj.opt.get('F')
-    fig = plot_result_pairwise(
-        n_obj, features, objective_names, axis_bound=objectives_bound
+    features, component_values, scores = report_pop_swri(
+        obj, fig_progress_folder, 0, objective_names, input_names_dict,
+        objectives_bound, scores_bound, component_values_bound
     )
-    fig.supxlabel(str(n_gen), fontsize=20)
-    fig.tight_layout()
-    fig.savefig(os.path.join(fig_progress_folder, str(n_gen) + '.png'))
-
-    component_values = obj.opt.get('X')
-    # out = {}
-    # problem._evaluate(component_values, out, get_score=True)
-    # print(out["F"].reshape(-1))
-    scores = obj.opt.get('scores')
-    fig = plot_single_objective(
-        scores.reshape(-1), dict(o1="Score"), axis_bound=scores_bound
+    res_dict = dict(
+        features=features, component_values=component_values, scores=scores
     )
-    fig.supxlabel(str(n_gen), fontsize=20)
-    fig.tight_layout()
-    fig.savefig(
-        os.path.join(fig_progress_folder, 'score_' + str(n_gen) + '.png')
-    )
-
-    fig = plot_result_pairwise(
-        len(problem.input_names), component_values, input_names_dict,
-        axis_bound=inputs_bound, n_col_default=5, subfigsz=4, fsz=16, sz=20
-    )
-    fig.supxlabel(str(n_gen), fontsize=20)
-    fig.tight_layout()
-    fig.savefig(
-        os.path.join(fig_progress_folder, 'inputs_' + str(n_gen) + '.png')
-    )
-    plt.close('all')
+    obj_eval_path = os.path.join(obj_eval_folder, 'obj' + str(obj.n_gen))
+    save_obj(res_dict, obj_eval_path)
 
 # finally obtain the result object
 res = obj.result()
