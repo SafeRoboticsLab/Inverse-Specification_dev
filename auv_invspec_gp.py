@@ -242,6 +242,21 @@ def main(config_file, config_dict):
       fig.savefig(os.path.join(fig_progress_folder, str(n_gen) + '.png'))
       plt.close()
 
+      features_normalized = normalize(
+          -obj.pop.get('F'), input_min=objectives_bound[:, 0],
+          input_max=objectives_bound[:, 1]
+      )
+      feasible_index, scores = getHumanScores(
+          features_normalized, w_opt, active_constraint_set
+      )
+
+      res_dict = dict(
+          features=features_normalized, component_values=obj.pop.get('X'),
+          scores=scores, feasible_index=feasible_index
+      )
+      obj_eval_path = os.path.join(obj_eval_folder, 'obj' + str(obj.n_gen))
+      save_obj(res_dict, obj_eval_path)
+
     #= interact with human
     if config_inv_spec.NUM_WARMUP == 0:
       time2update = ((obj.n_gen == 1)
@@ -308,10 +323,7 @@ def main(config_file, config_dict):
         indices = np.argsort(features[:, 0])
         features = features[indices]
         save_obj(agent, os.path.join(agent_folder, 'agent' + str(updateTimes)))
-        objEvalPath = os.path.join(
-            obj_eval_folder, 'obj' + str(updateTimes - 1) + '.npy'
-        )
-        np.save(objEvalPath, features)
+
         feasible_index, scores = getHumanScores(
             features, w_opt, active_constraint_set
         )

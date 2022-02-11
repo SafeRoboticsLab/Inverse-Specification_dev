@@ -26,7 +26,10 @@ from pymoo.operators.mixed_variable_operator import (
 )
 
 # others
-from utils import set_seed, plot_result_3D, plot_result_pairwise, normalize
+from utils import (
+    get_infeasible_designs, set_seed, plot_result_3D, plot_result_pairwise,
+    normalize, save_obj
+)
 
 timestr = time.strftime("%m-%d-%H_%M")
 
@@ -56,12 +59,18 @@ parser.add_argument(
     "-o", "--optimizer", help="problem type", default='oo', type=str,
     choices=['oo', 'built-in']
 )
+parser.add_argument(
+    "-ht", "--human_type", help="human type", default='range_hard', type=str,
+    choices=['range', 'speed', 'range_hard']
+)
 
 args = parser.parse_args()
 print(args)
 outFolder = os.path.join('scratch', 'auv_' + args.problem_type, 'nsga2')
 fig_folder = os.path.join(outFolder, 'figure')
 os.makedirs(fig_folder, exist_ok=True)
+obj_eval_folder = os.path.join(outFolder, 'obj_eval')
+os.makedirs(obj_eval_folder, exist_ok=True)
 # endregion
 
 # region: == Define Problem ==
@@ -74,9 +83,20 @@ print('inputs:', problem.fparams.xinputs)
 
 input_min = np.array([0., 0.4, -350.])
 input_max = np.array([12000., 1.6, 0.])
-axis_bound = np.empty(shape=(3, 2))
-axis_bound[:, 0] = input_min
-axis_bound[:, 1] = input_max
+objectives_bound = np.empty(shape=(3, 2))
+objectives_bound[:, 0] = input_min
+objectives_bound[:, 1] = input_max
+
+
+def getHumanScores(design_feature, w_opt, active_constraint_set=None):
+  n_designs = design_feature.shape[0]
+  indicator = get_infeasible_designs(design_feature, active_constraint_set)
+  feasible_index = np.arange(n_designs)[np.logical_not(indicator)]
+  feasible_designs = design_feature[feasible_index]
+  scores = feasible_designs @ w_opt
+  return feasible_index, scores
+
+
 # endregion
 
 # region: == Define Algorithm ==
@@ -113,6 +133,22 @@ algorithm = NSGA2(
 termination = get_termination("n_gen", args.num_gen)
 # endregion
 
+# region: == Define Human Simulator ==
+print("\n== Human Simulator ==")
+active_constraint_set = None
+if args.human_type == 'speed':
+  w_opt = np.array([0.1, 0.7, 0.2])
+else:
+  w_opt = np.array([0.5, 0.1, 0.4])
+  if args.human_type == 'range_hard':
+    active_constraint_set = [['0', 0.2], ['1', 0.2]]
+print("Human simulator has weights below")
+print(w_opt)
+if active_constraint_set is not None:
+  print("Human simulator has active constraints:")
+  print(active_constraint_set)
+# endregion
+
 # region: == Define Solver ==
 print("\n== Optimization starts ...")
 if args.optimizer == 'oo':
@@ -140,21 +176,30 @@ if args.optimizer == 'oo':
       print(f"gen[{n_gen}]: n_nds: {n_nds} CV: {CV}")
       F = -obj.opt.get('F')
       if n_obj == 3:
-        fig = plot_result_3D(F, objective_names, axis_bound)
+        fig = plot_result_3D(F, objective_names, objectives_bound)
       else:
-        fig = plot_result_pairwise(n_obj, F, objective_names, axis_bound)
+        fig = plot_result_pairwise(n_obj, F, objective_names, objectives_bound)
       fig.supxlabel(str(n_gen), fontsize=20)
       fig.tight_layout()
       fig_progress_folder = os.path.join(fig_folder, 'progress')
       os.makedirs(fig_progress_folder, exist_ok=True)
       fig.savefig(os.path.join(fig_progress_folder, str(n_gen) + '.png'))
       plt.close()
-      # idx = np.argmax(F[:, 0])
-      # for i, tmp in enumerate(F[idx]):
-      #     if i == n_obj-1:
-      #         print(tmp)
-      #     else:
-      #         print(tmp, end=', ')
+
+      features_normalized = normalize(
+          -obj.pop.get('F'), input_min=objectives_bound[:, 0],
+          input_max=objectives_bound[:, 1]
+      )
+      feasible_index, scores = getHumanScores(
+          features_normalized, w_opt, active_constraint_set
+      )
+
+      res_dict = dict(
+          features=features_normalized, component_values=obj.pop.get('X'),
+          scores=scores, feasible_index=feasible_index
+      )
+      obj_eval_path = os.path.join(obj_eval_folder, 'obj' + str(obj.n_gen))
+      save_obj(res_dict, obj_eval_path)
 
   # finally obtain the result object
   res = obj.result()
@@ -296,8 +341,8 @@ print(pickle_path)
 
 F = -res.F
 fig = plot_result_pairwise(
-    n_obj, F, objective_names, axis_bound, n_col_default=5, subfigsz=4, fsz=16,
-    sz=20
+    n_obj, F, objective_names, objectives_bound, n_col_default=5, subfigsz=4,
+    fsz=16, sz=20
 )
 fig.tight_layout()
 fig.savefig(os.path.join(fig_folder, 'obj_pairwise.png'))
