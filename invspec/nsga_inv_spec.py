@@ -232,7 +232,7 @@ class NSGAInvSpec(GeneticAlgorithm):
         survival_type="crowding"
     )
     for _, ind in enumerate(self.pop):
-      ind.set("fitness", 1.)
+      ind.set("fitness", 0.)
 
   def _infill(self):
     """
@@ -251,7 +251,8 @@ class NSGAInvSpec(GeneticAlgorithm):
         tournament_type_second=tournament_type_second
     )
 
-    # if the mating could not generate any new offspring (duplicate elimination might make that happen)
+    # if the mating could not generate any new offspring (duplicate elimination
+    # might make that happen)
     if len(off) == 0:
       self.termination.force_termination = True
       return
@@ -260,7 +261,8 @@ class NSGAInvSpec(GeneticAlgorithm):
     elif len(off) < self.n_offsprings:
       if self.verbose:
         print(
-            "WARNING: Mating could not produce the required number of (unique) offsprings!"
+            "WARNING: Mating could not produce the required number of",
+            "(unique) offsprings!"
         )
 
     return off
@@ -281,7 +283,7 @@ class NSGAInvSpec(GeneticAlgorithm):
           survival_type="crowding"
       )
       for _, ind in enumerate(self.pop):
-        ind.set("fitness", 1.)
+        ind.set("fitness", 0.)
     else:
       #* Calculate the human fitness of the pop
       _ = self.fitness_func.eval(self.pop)
