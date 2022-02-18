@@ -38,7 +38,7 @@ from invspec.querySelector.mutual_info_query_selector import (
 from invspec.inference.reward_GP import RewardGP
 
 # others
-from utils import set_seed, save_obj, plot_result_pairwise, normalize
+from utils import set_seed, save_obj, load_obj, plot_result_pairwise, normalize
 from config.config import load_config
 from shutil import copyfile
 
@@ -50,6 +50,9 @@ def main(config_file, config_dict):
   config_inv_spec = config_dict['INV_SPEC']
   config_gp = config_dict['GP']
   config_human = config_dict['HUMAN']
+  init_with_pop = False
+  if config_ga.INIT_OBJ_PATH:
+    init_with_pop = True
 
   out_folder = os.path.join(
       'scratch', 'swri', 'invspec_gp', config_inv_spec.QUERY_SELECTOR_TYPE
@@ -245,16 +248,36 @@ def main(config_file, config_dict):
   collect_undistinguished = False
   while obj.has_next():
     #= perform an iteration of the algorithm
-    obj.next()
-    print(obj.n_gen, end='\r')
+    if init_with_pop and not obj.is_initialized:
+      # /Users/kaichieh/Desktop/SDCPS/src/scratch/swri/NSGA2/default/objective_20
+      init_obj_pop = load_obj(config_ga.INIT_OBJ_PATH)
+      obj._initialize()
+      init_obj_pop.set("n_gen", obj.n_gen)
+      obj.evaluator.eval(obj.problem, init_obj_pop, algorithm=obj)
+      obj.advance(infills=init_obj_pop)
+      force_check = True
+    else:
+      # if without initialiation, it goes through
+      # 1. pymoo.core.algorithm.Algorithm.next()
+      # 2. pymoo.core.algorithm.Algorithm.infill()
+      #     a. pymoo.core.algorithm.Algorithm._initialize()
+      #     b. invspec.nsga_inv_spec.NSGAInvSpec._initialize_infill()
+      # 3. pymoo.core.algorithm.Algorithm.advance(infills)
+      #     a.invspec.nsga_inv_spec.NSGAInvSpec._initialize_advance()
+      obj.next()
+      print(obj.n_gen, end='\r')
+      force_check = False
+
+    n_acc_fb = agent.get_number_feedback()
+
+    #= store
     if obj.n_gen == config_inv_spec.NUM_WARMUP:
       designs_collection['component_values'] = obj.pop.get('X')
       designs_collection['features'] = -obj.pop.get('F')
       designs_collection['scores'] = obj.pop.get('scores')
-    n_acc_fb = agent.get_number_feedback()
 
     #= check performance
-    if obj.n_gen % config_general.CHECK_GEN == 0:
+    if obj.n_gen % config_general.CHECK_GEN == 0 or force_check:
       features, component_values, scores = report_pop_swri(
           obj, fig_progress_folder, n_acc_fb, objective_names,
           input_names_dict, objectives_bound, scores_bound,
@@ -268,8 +291,7 @@ def main(config_file, config_dict):
 
     #= interact with human
     if config_inv_spec.NUM_WARMUP == 0:
-      time2update = ((obj.n_gen == 1)
-                     or (obj.n_gen % config_inv_spec.INTERACT_PERIOD == 0))
+      time2update = (obj.n_gen - 1) % config_inv_spec.INTERACT_PERIOD == 0
     else:
       num_after_warmup = obj.n_gen - config_inv_spec.NUM_WARMUP
       time2update = (
@@ -362,6 +384,11 @@ def main(config_file, config_dict):
     designs_collection['scores'] = np.concatenate(
         (obj.pop.get('scores'), designs_collection['scores'])
     )
+  else:
+    designs_collection['component_values'] = obj.pop.get('X')
+    designs_collection['features'] = -obj.pop.get('F')
+    designs_collection['scores'] = obj.pop.get('scores')
+
   if agent.inference.input_normalize:
     features_final = agent.inference.normalize(designs_collection['features'])
   else:
@@ -376,8 +403,8 @@ def main(config_file, config_dict):
   pickle_path = os.path.join(out_folder, 'design_collections.pkl')
   with open(pickle_path, 'wb') as output:
     pickle.dump(designs_collection, output, pickle.HIGHEST_PROTOCOL)
-  print(designs_collection['scores'])
-  print(designs_collection['predicted_scores'])
+  print(designs_collection['scores'].reshape(-1))
+  print(designs_collection['predicted_scores'].reshape(-1))
 
   res = obj.result()
   res_to_save = dict(X=res.X, F=res.F, pop=res.pop, opt=res.opt)
@@ -398,7 +425,7 @@ def main(config_file, config_dict):
   indices = np.argsort(features[:, 0])
   features = features[indices]
   with np.printoptions(formatter={'float': '{: 2.2f}'.format}):
-    print(features[-1])
+    print(features[-1].reshape(-1))
 
   save_obj(agent, os.path.join(agent_folder, 'agent_final'))
   # endregion

@@ -1,6 +1,6 @@
 # Please contact the author(s) of this library if you have any questions.
 # Authors: Kai-Chieh Hsu ( kaichieh@princeton.edu )
-# example: python3 swri_ga_scores.py -psz 25 -ng 50 -cg 5
+# example: python3 swri_ga_scores.py
 
 import time
 import os
@@ -13,6 +13,7 @@ import pickle
 os.sys.path.append(os.path.join(os.getcwd(), 'src'))
 
 from swri.problem import SWRIProblem, SWRISimParallel
+from swri.utils import report_pop_swri
 
 # design optimization module
 from pymoo.factory import (
@@ -24,7 +25,9 @@ from pymoo.operators.mixed_variable_operator import (
 )
 
 # others
-from utils import set_seed, plot_single_objective, plot_result_pairwise
+from utils import (
+    set_seed, plot_result_pairwise, save_obj, plot_single_objective
+)
 
 timestr = time.strftime("%m-%d-%H_%M")
 
@@ -39,7 +42,7 @@ parser.add_argument(
     "-psz", "--pop_size", help="population size", default=25, type=int
 )
 parser.add_argument(
-    "-ng", "--num_gen", help="#generation", default=200, type=int
+    "-ng", "--num_gen", help="#generation", default=30, type=int
 )
 parser.add_argument(
     "-cg", "--check_generation", help="check period", default=1, type=int
@@ -55,6 +58,8 @@ if args.name is not None:
   out_folder = os.path.join(out_folder, args.name)
 fig_folder = os.path.join(out_folder, 'figure')
 os.makedirs(fig_folder, exist_ok=True)
+obj_eval_folder = os.path.join(out_folder, 'obj_eval')
+os.makedirs(obj_eval_folder, exist_ok=True)
 # endregion
 
 # region: == Define Problem ==
@@ -102,7 +107,7 @@ scores_bound = np.array([-1e-8, 430])
 input_names_dict = {}
 for i in range(len(problem.input_names)):
   input_names_dict['o' + str(i + 1)] = problem.input_names[i][8:]
-inputs_bound = np.concatenate(
+component_values_bound = np.concatenate(
     (problem.xl[:, np.newaxis], problem.xu[:, np.newaxis]), axis=1
 )
 # endregion
@@ -169,6 +174,7 @@ while obj.has_next():
 
     # plot the whole population
     scores = -obj.pop.get('F')
+    print(scores.reshape(-1))
     fig = plot_single_objective(
         scores, objective_names, axis_bound=scores_bound
     )
@@ -190,7 +196,8 @@ while obj.has_next():
 
     fig = plot_result_pairwise(
         len(problem.input_names), component_values, input_names_dict,
-        axis_bound=inputs_bound, n_col_default=5, subfigsz=4, fsz=16, sz=20
+        axis_bound=component_values_bound, n_col_default=5, subfigsz=4, fsz=16,
+        sz=20
     )
     fig.supxlabel(str(n_gen), fontsize=20)
     fig.tight_layout()
@@ -199,6 +206,12 @@ while obj.has_next():
     )
 
     plt.close('all')
+
+    res_dict = dict(
+        features=features, component_values=component_values, scores=scores
+    )
+    obj_eval_path = os.path.join(obj_eval_folder, 'obj' + str(obj.n_gen))
+    save_obj(res_dict, obj_eval_path)
 
 # finally obtain the result object
 res = obj.result()

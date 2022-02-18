@@ -1,6 +1,7 @@
 # Please contact the author(s) of this library if you have any questions.
 # Authors: Kai-Chieh Hsu ( kaichieh@princeton.edu )
-# example: python3 swri_ga.py
+# example: python3 swri_ga.py -n default1 -rnd 0
+# python swri_ga.py -cg 1 -ng 11 -init /Users/kaichieh/Desktop/SDCPS/src/scratch/swri/NSGA2/default/objective_20 -n test1 -rnd 0
 
 import time
 import os
@@ -25,7 +26,7 @@ from pymoo.operators.mixed_variable_operator import (
 )
 
 # others
-from utils import (set_seed, plot_result_pairwise, save_obj)
+from utils import set_seed, plot_result_pairwise, save_obj, load_obj
 
 timestr = time.strftime("%m-%d-%H_%M")
 
@@ -40,15 +41,17 @@ parser.add_argument(
     "-psz", "--pop_size", help="population size", default=25, type=int
 )
 parser.add_argument(
-    "-ng", "--num_gen", help="#generation", default=50, type=int
+    "-ng", "--num_gen", help="#generation", default=20, type=int
 )
 parser.add_argument(
-    "-cg", "--check_generation", help="check period", default=5, type=int
+    "-cg", "--check_generation", help="check period", default=1, type=int
 )
 parser.add_argument(
     "-p", "--problem_type", help="problem type", default='parallel', type=str,
     choices=['series', 'parallel']
 )
+
+parser.add_argument("-init", "--init_obj_path", type=str, default=None)
 
 # output
 parser.add_argument("-n", "--name", help="extra name", default=None)
@@ -62,6 +65,12 @@ fig_folder = os.path.join(out_folder, 'figure')
 os.makedirs(fig_folder, exist_ok=True)
 obj_eval_folder = os.path.join(out_folder, 'obj_eval')
 os.makedirs(obj_eval_folder, exist_ok=True)
+fig_progress_folder = os.path.join(fig_folder, 'progress')
+os.makedirs(fig_progress_folder, exist_ok=True)
+
+init_with_pop = False
+if args.init_obj_path:
+  init_with_pop = True
 # endregion
 
 # region: == Define Problem ==
@@ -135,6 +144,7 @@ algorithm = NSGA2(
     mutation=mutation,
     eliminate_duplicates=True,
 )
+
 # termination criterion
 termination = get_termination("n_gen", args.num_gen)
 # endregion
@@ -149,8 +159,32 @@ obj = copy.deepcopy(algorithm)
 obj.setup(
     problem, termination=termination, seed=args.random_seed, save_history=True
 )
-fig_progress_folder = os.path.join(fig_folder, 'progress')
-os.makedirs(fig_progress_folder, exist_ok=True)
+
+# if without initialiation, it goes through
+# 1. pymoo.core.algorithm.Algorithm.next()
+# 2. pymoo.core.algorithm.Algorithm.infill()
+#     a. pymoo.core.algorithm.Algorithm._initialize()
+#     b. pymoo.algorithms.base.genetic.GeneticAlgorithm._initialize_infill()
+# 3. pymoo.core.algorithm.Algorithm.advance(infills)
+#     a. pymoo.algorithms.base.genetic.GeneticAlgorithm._initialize_advance()
+if init_with_pop:
+  # /Users/kaichieh/Desktop/SDCPS/src/scratch/swri/NSGA2/default/objective_20
+  init_obj_pop = load_obj(args.init_obj_path)
+  obj._initialize()
+  init_obj_pop.set("n_gen", obj.n_gen)
+  obj.evaluator.eval(obj.problem, init_obj_pop, algorithm=obj)
+  obj.advance(infills=init_obj_pop)
+
+  features, component_values, scores = report_pop_swri(
+      obj, fig_progress_folder, 0, objective_names, input_names_dict,
+      objectives_bound, scores_bound, component_values_bound
+  )
+
+  res_dict = dict(
+      features=features, component_values=component_values, scores=scores
+  )
+  obj_eval_path = os.path.join(obj_eval_folder, 'obj' + str(obj.n_gen))
+  save_obj(res_dict, obj_eval_path)
 
 # until the termination criterion has not been met
 start_time = time.time()
@@ -158,6 +192,9 @@ while obj.has_next():
   print(obj.n_gen, end='\r')
   # perform an iteration of the algorithm
   obj.next()
+
+  if obj.n_gen == 20 and not init_with_pop:
+    save_obj(obj.pop, os.path.join(out_folder, 'objective_20'))
 
   # check performance
   if obj.n_gen % args.check_generation == 0:
