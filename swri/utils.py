@@ -39,9 +39,12 @@ def report_pop_swri(
   CV = obj.opt.get('CV').min()
   print(f"gen[{n_gen}]: n_nds: {n_nds} CV: {CV}")
 
-  features = -obj.opt.get('F')
-  component_values = obj.opt.get('X')
-  scores = obj.opt.get('scores').reshape(-1)
+  # features = -obj.opt.get('F')
+  # component_values = obj.opt.get('X')
+  # scores = obj.opt.get('scores').reshape(-1)
+  features = -obj.pop.get('F')
+  component_values = obj.pop.get('X')
+  scores = obj.pop.get('scores').reshape(-1)
   print(scores)
 
   fig1, fig2, fig3 = plot_pop_swri(
