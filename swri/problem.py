@@ -15,6 +15,16 @@ class SWRIWrapper(ABC):
   def __init__(
       self, values_to_extract=None, objective_names=None, obj_indicator=None
   ):
+    """A wrapper to deal with input transformation and output extraction.
+
+    Args:
+        values_to_extract (list, optional): which values to extract from the
+            FDM outputs. Defaults to None.
+        objective_names (dict, optional): the names of the extracted values.
+            Defaults to None.
+        obj_indicator (np.ndarray, optional): indicators that outputs are
+            supposed to be minimize (+1) or maximize (-1). Defaults to None.
+    """
     if objective_names is None:
       self.values_to_extract = np.array([
           "Flight_distance",
@@ -233,3 +243,47 @@ class SWRIProblem(Problem, SWRISimParallel):
     out['F'], out['scores'] = self.get_fetures(
         X, get_all=True, *args, **kwargs
     )
+
+
+class SWRIProblemInvSpec(Problem):
+
+  def __init__(
+      self, template_file, exec_file, num_workers, inference, prefix='eval_',
+      objective_names=dict(o1="InvSpec Score")
+  ):
+
+    # SwRI
+    self.sim = SWRISimParallel(
+        template_file, exec_file, num_workers, prefix=prefix,
+        values_to_extract=None, objective_names=None, obj_indicator=None
+    )
+
+    # Pymoo
+    self.input_names = self.sim.input_names
+    self.objective_names = objective_names
+    self.input_mask = self.sim.input_mask
+    xl = np.zeros(len(self.sim.input_names))
+    xu = np.array([5., 5., 5., 5., 5., 50.])
+    Problem.__init__(
+        self, n_var=len(self.sim.input_names), n_obj=len(self.objective_names),
+        n_constr=0, xl=xl, xu=xu
+    )
+
+    # InvSpec
+    self.inference = inference
+
+  def get_all(self, X):
+    features, oracle_scores = self.sim.get_fetures(X, get_all=True)
+    # negative sign changes from minimization to maximization
+    inputs_to_invspec = self.inference.normalize(-features)
+    predicted_scores = self.inference.eval(inputs_to_invspec)
+    return -features, oracle_scores.reshape(-1), predicted_scores.reshape(-1)
+
+  def _evaluate(self, X, out, *args, **kwargs):
+    features, out['scores'] = self.sim.get_fetures(
+        X, get_all=True, *args, **kwargs
+    )
+    inputs_to_invspec = self.inference.normalize(-features)
+    out['F'] = -self.inference.eval(
+        inputs_to_invspec
+    )  # pymoo wants to minimize

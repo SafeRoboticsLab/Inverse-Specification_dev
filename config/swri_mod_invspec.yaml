@@ -1,0 +1,24 @@
+GENERAL:
+  SEED: 0
+  NAME: random
+  NUM_WORKERS: 8
+
+INV_SPEC:
+  NUM_WARMUP: 20
+  INFER_TYPE: gp
+  POP_EXTRACT_TYPE: F
+  BETA: 10.  # confidence coefficient
+  INPUT_NORMALIZE: true
+  NUM_REQUIRED_QUERY: 3
+  MAX_ITER: 20  # each iter has (num_workers / 2) queries -> 1000 queries in total
+
+GP:
+  HORIZONTAL_LENGTH: 0.3  # ell in RBF kernel
+  VERTICAL_VARIATION: 1.0  # sigma_f in RBF kernel
+  NOISE_LEVEL: 0.1  # sigma_n in RBF kernel
+
+HUMAN:
+  BETA: 10
+  TYPE: plain
+  PERFECT_RANK: false
+  INDIFFERENCE: 0.01

@@ -1,0 +1,10 @@
+GENERAL:
+  SEED: 4
+  CHECK_GEN: 1
+  NUM_WORKERS: 9
+  NAME: test6
+  AGENT_PATH: scratch/swri/modular/agent/agent
+
+GA:
+  POP_SIZE: 25
+  NUM_GEN: 50
