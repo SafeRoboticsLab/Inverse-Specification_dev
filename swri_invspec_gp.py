@@ -75,7 +75,7 @@ def main(config_file, config_dict):
 
   # region: == Define Problem ==
   print("\n== Problem ==")
-  set_seed(seed_val=config_general.SEED, use_torch=True)
+  set_seed(seed_val=config_general.SEED, use_torch=False)
   TEMPLATE_FILE = os.path.join('swri', 'template', 'FlightDyn_quadH.inp')
   EXEC_FILE = os.path.join('swri', "new_fdm")
   problem = SWRIProblem(
@@ -88,16 +88,12 @@ def main(config_file, config_dict):
   print('objectives', objective_names)
   print('inputs:', problem.input_names)
 
-  x = np.array([[
-      3.9971661079507594, 3.6711272495701843, 3.3501992857774856,
-      3.0389318577493087, 4.422413267471787, 17.
-  ]])
+  x = np.array([[3.99, 3.67, 3.35, 3.03, 4.42, 17.],
+                [3.99, 3.67, 3.35, 3.03, 4.42, 17.]])
   y = {}
   problem._evaluate(x, y)
-  print("\nGet the output from the problem:")
+  print("\nGet ax example output from the problem:")
   print(y['F'])
-  y = {}
-  problem._evaluate(x, y)
   print(y['scores'])
 
   objectives_bound = np.array([
@@ -301,14 +297,7 @@ def main(config_file, config_dict):
 
     if time2update and (obj.n_gen < num_gen_total):
       print("\nAt generation {}".format(obj.n_gen))
-      features_unnormalized = -obj.pop.get('F')
-      if config_inv_spec.INPUT_NORMALIZE:
-        features = normalize(
-            features_unnormalized, input_min=input_bound[:, 0],
-            input_max=input_bound[:, 1]
-        )  # we want to maximize
-      else:
-        features = features_unnormalized
+      features = -obj.pop.get('F')  # we want to maximize
       components = obj.pop.get('X')
 
       n_want = config_inv_spec.MAX_QUERIES_PER
@@ -331,11 +320,17 @@ def main(config_file, config_dict):
           print(fb_raw)
 
           if config_inv_spec.POP_EXTRACT_TYPE == 'F':
-            q_1 = (query_features[0:1, :], np.array([]).reshape(1, 0))
-            q_2 = (query_features[1:2, :], np.array([]).reshape(1, 0))
+            inputs_to_invspec = query_features
           else:
-            q_1 = (query_components[0:1, :], np.array([]).reshape(1, 0))
-            q_2 = (query_components[1:2, :], np.array([]).reshape(1, 0))
+            inputs_to_invspec = query_components
+
+          if config_inv_spec.INPUT_NORMALIZE:
+            inputs_to_invspec = normalize(
+                inputs_to_invspec, input_min=input_bound[:, 0],
+                input_max=input_bound[:, 1]
+            )
+          q_1 = (inputs_to_invspec[0:1, :], np.array([]).reshape(1, 0))
+          q_2 = (inputs_to_invspec[1:2, :], np.array([]).reshape(1, 0))
 
           if fb_raw != 2:
             n_fb += 1

@@ -13,7 +13,6 @@ import pickle
 os.sys.path.append(os.path.join(os.getcwd(), 'src'))
 
 from swri.problem import SWRIProblem, SWRISimParallel
-from swri.utils import report_pop_swri
 
 # design optimization module
 from pymoo.factory import (
@@ -70,7 +69,7 @@ values_to_extract = np.array(["Path_traverse_score_based_on_requirements"])
 objective_names = dict(o1="Score")
 obj_indicator = np.array([-1.])
 problem = SWRIProblem(
-    TEMPLATE_FILE, EXEC_FILE, num_workers=5,
+    TEMPLATE_FILE, EXEC_FILE, num_workers=8,
     values_to_extract=values_to_extract, objective_names=objective_names,
     obj_indicator=obj_indicator
 )
@@ -146,7 +145,7 @@ algorithm = GA(
 termination = get_termination("n_gen", args.num_gen)
 # endregion
 
-# region: == Define Solver ==
+# region: == Optimization ==
 print("\n== Optimization starts ...")
 # perform a copy of the algorithm to ensure reproducibility
 obj = copy.deepcopy(algorithm)
