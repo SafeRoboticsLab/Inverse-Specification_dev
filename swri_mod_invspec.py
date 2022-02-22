@@ -26,6 +26,47 @@ from config.config import load_config
 from shutil import copyfile
 
 
+def sample_and_evaluate(problem, component_values_bound, num_samples=8):
+  components = unnormalize(
+      np.random.rand(num_samples, problem.n_var), component_values_bound[:, 0],
+      component_values_bound[:, 1]
+  )
+
+  # get features
+  y = {}
+  problem._evaluate(components, y)
+  return components, y
+
+
+def query_and_collect(
+    query_features, query_components, human, agent, config_inv_spec
+):
+  query = dict(F=query_features, X=query_components)
+  # get feedback
+  fb_raw = human.get_ranking(query)
+
+  # store feedback
+  if config_inv_spec.POP_EXTRACT_TYPE == 'F':
+    inputs_to_invspec = query_features
+  else:
+    inputs_to_invspec = query_components
+
+  if config_inv_spec.INPUT_NORMALIZE:
+    inputs_to_invspec = agent.inference.normalize(inputs_to_invspec)
+  q_1 = (inputs_to_invspec[0:1, :], np.array([]).reshape(1, 0))
+  q_2 = (inputs_to_invspec[1:2, :], np.array([]).reshape(1, 0))
+
+  if fb_raw != 2:
+    if fb_raw == 0:
+      fb_invspec = 1
+    elif fb_raw == 1:
+      fb_invspec = -1
+    agent.store_feedback(q_1, q_2, fb_invspec)
+    return True, inputs_to_invspec
+  else:
+    return False, None
+
+
 def main(config_file, config_dict):
   # region: == init ==
   config_general = config_dict['GENERAL']
@@ -105,14 +146,13 @@ def main(config_file, config_dict):
   )
   # endregion
 
-  # region: == Inverse Specification ==
+  # region: == Define Inverse Specification ==
   print("\n== InvSpec Construction ==")
   CONFIG = GPConfig(
-      SEED=config_general.SEED,
-      HORIZONTAL_LENGTH=config_gp.HORIZONTAL_LENGTH,
+      SEED=config_general.SEED, HORIZONTAL_LENGTH=config_gp.HORIZONTAL_LENGTH,
       VERTICAL_VARIATION=config_gp.VERTICAL_VARIATION,
-      NOISE_LEVEL=config_gp.NOISE_LEVEL,
-      BETA=config_inv_spec.BETA,
+      NOISE_LEVEL=config_gp.NOISE_LEVEL, BETA=config_inv_spec.BETA,
+      MEMORY_CAPACITY=config_inv_spec.REQUIRED_FB
   )
   print(vars(CONFIG), '\n')
 
@@ -148,20 +188,24 @@ def main(config_file, config_dict):
           pop_extract_type=config_inv_spec.POP_EXTRACT_TYPE, verbose=True
       ), querySelector=RandomQuerySelector()
   )
+  # endregion
 
+  # region: == Inverse Specification Starts ==
   effective_query = []
   update_times = 0
   num_query_per_batch = int(config_general.NUM_WORKERS / 2)
-  for num_iter in range(config_inv_spec.MAX_ITER):
-    print(num_iter, end=': ')
+  n_ask = 0
+
+  # get the first valid query
+  valid = False
+  valid_query = None
+  cnt = 0
+  while valid_query is None:
+    print(cnt, end=': ')
     # randomly sample component values
-    components = unnormalize(
-        np.random.rand(config_general.NUM_WORKERS, problem.n_var),
-        component_values_bound[:, 0], component_values_bound[:, 1]
+    components, y = sample_and_evaluate(
+        problem, component_values_bound, config_general.NUM_WORKERS
     )
-    # get features
-    y = {}
-    problem._evaluate(components, y)
     features = y['F']
     oracle_scores_all = y['scores']
 
@@ -172,31 +216,74 @@ def main(config_file, config_dict):
       query_components = components[start:end, :]
       oracle_scores = oracle_scores_all[start:end]
 
-      query = dict(F=query_features, X=query_components)
-      # get feedback
-      fb_raw = human.get_ranking(query)
-
-      # store feedback
-      if config_inv_spec.POP_EXTRACT_TYPE == 'F':
-        inputs_to_invspec = query_features
-      else:
-        inputs_to_invspec = query_components
-
-      if config_inv_spec.INPUT_NORMALIZE:
-        inputs_to_invspec = agent.inference.normalize(inputs_to_invspec)
-      q_1 = (inputs_to_invspec[0:1, :], np.array([]).reshape(1, 0))
-      q_2 = (inputs_to_invspec[1:2, :], np.array([]).reshape(1, 0))
-
-      if fb_raw != 2:
-        if fb_raw == 0:
-          fb_invspec = 1
-        elif fb_raw == 1:
-          fb_invspec = -1
+      valid, inputs_to_invspec = query_and_collect(
+          query_features, query_components, human, agent, config_inv_spec
+      )
+      n_ask += 1
+      if valid:
         effective_query.append([inputs_to_invspec, oracle_scores])
-        agent.store_feedback(q_1, q_2, fb_invspec)
+        valid_query = (query_features, query_components, oracle_scores)
+        print("Get the first valid query!\n\n")
+        break
+    cnt += 1
+
+  early_terminate = False
+  # keep a valid query in buffer
+  for num_iter in range(config_inv_spec.MAX_ITER):
+    print(num_iter, end=': ')
+    # randomly sample component values
+    components, y = sample_and_evaluate(
+        problem, component_values_bound, config_general.NUM_WORKERS
+    )
+    features = y['F']
+    oracle_scores_all = y['scores']
+
+    # compare the new designs with the old designs (valid query) in the buffer
+    for i in range(config_general.NUM_WORKERS):
+      new_feature = -features[i:i + 1, :]
+      new_component = components[i:i + 1, :]
+      new_oracle_score = oracle_scores_all[i:i + 1]
+
+      valid_list = [False, False]
+      candidate_query_list = [None, None]
+      for j in range(2):
+        old_feature = valid_query[0][j:j + 1, :]
+        old_component = valid_query[1][j:j + 1, :]
+        old_oracle_score = valid_query[2][j:j + 1, :]
+        query_features = np.concatenate((old_feature, new_feature), axis=0)
+        query_components = np.concatenate((old_component, new_component),
+                                          axis=0)
+        oracle_scores = np.concatenate((old_oracle_score, new_oracle_score))
+
+        valid, inputs_to_invspec = query_and_collect(
+            query_features, query_components, human, agent, config_inv_spec
+        )
+        candidate_query_list[j] = (
+            query_features, query_components, oracle_scores
+        )
+        n_ask += 1
+        if valid:
+          effective_query.append([inputs_to_invspec, oracle_scores])
+          valid_list[j] = True
+
+      if valid_list[0]:
+        if not valid_list[1]:
+          valid_query = candidate_query_list[0]
+        else:
+          valid_query = candidate_query_list[np.random.choice(2)]
+      elif valid_list[1]:
+        valid_query = candidate_query_list[1]
+
+    n_acc_fb = agent.get_number_feedback()
+    print("Collect {:d} feedback out of {:d} queries".format(n_acc_fb, n_ask))
+    if n_acc_fb >= config_inv_spec.REQUIRED_FB:
+      break
 
     # update fitness function
-    if len(effective_query) >= config_inv_spec.NUM_REQUIRED_QUERY:
+    if (
+        early_terminate
+        and len(effective_query) >= config_inv_spec.NUM_REQUIRED_QUERY
+    ):
       update_times += 1
       print("\nUpdate:")
       _ = agent.learn()
@@ -222,7 +309,6 @@ def main(config_file, config_dict):
         break
 
   n_acc_fb = agent.get_number_feedback()
-  n_ask = int(config_inv_spec.MAX_ITER * config_general.NUM_WORKERS / 2)
   print("Collect {:d} feedback out of {:d} queries".format(n_acc_fb, n_ask))
   agent.learn()
   # endregion
