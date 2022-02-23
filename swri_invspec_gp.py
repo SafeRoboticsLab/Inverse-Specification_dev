@@ -38,7 +38,9 @@ from invspec.querySelector.mutual_info_query_selector import (
 from invspec.inference.reward_GP import RewardGP
 
 # others
-from utils import set_seed, save_obj, load_obj, plot_result_pairwise, normalize
+from utils import (
+    set_seed, save_obj, load_obj, plot_result_pairwise, query_and_collect
+)
 from config.config import load_config
 from shutil import copyfile
 
@@ -96,7 +98,14 @@ def main(config_file, config_dict):
   print(y['F'])
   print(y['scores'])
 
-  objectives_bound = np.array([
+  feature_names = dict(
+      o1="Distance",
+      o2="Time",
+      o3="Speed_avg",
+      o4="Dist_err_max",
+      o5="Dist_err_avg",
+  )
+  features_bound = np.array([
       [0, 4000],
       [-400, 0],
       [0, 30],
@@ -194,7 +203,7 @@ def main(config_file, config_dict):
   if config_inv_spec.INPUT_NORMALIZE:
     input_normalize = True
     if config_inv_spec.POP_EXTRACT_TYPE == 'F':
-      input_bound = objectives_bound
+      input_bound = features_bound
     elif config_inv_spec.POP_EXTRACT_TYPE == 'X':
       input_bound = component_values_bound
     input_min = input_bound[:, 0]
@@ -275,9 +284,8 @@ def main(config_file, config_dict):
     #= check performance
     if obj.n_gen % config_general.CHECK_GEN == 0 or force_check:
       features, component_values, scores = report_pop_swri(
-          obj, fig_progress_folder, n_acc_fb, objective_names,
-          input_names_dict, objectives_bound, scores_bound,
-          component_values_bound
+          obj, fig_progress_folder, n_acc_fb, feature_names, input_names_dict,
+          features_bound, scores_bound, component_values_bound
       )
       res_dict = dict(
           features=features, component_values=component_values, scores=scores
@@ -315,35 +323,12 @@ def main(config_file, config_dict):
         for idx in indices:
           query_features = features[idx, :]
           query_components = components[idx, :]
-          query = dict(F=query_features, X=query_components)
-          fb_raw = human.get_ranking(query)
-          print(fb_raw)
-
-          if config_inv_spec.POP_EXTRACT_TYPE == 'F':
-            inputs_to_invspec = query_features
-          else:
-            inputs_to_invspec = query_components
-
-          if config_inv_spec.INPUT_NORMALIZE:
-            inputs_to_invspec = normalize(
-                inputs_to_invspec, input_min=input_bound[:, 0],
-                input_max=input_bound[:, 1]
-            )
-          q_1 = (inputs_to_invspec[0:1, :], np.array([]).reshape(1, 0))
-          q_2 = (inputs_to_invspec[1:2, :], np.array([]).reshape(1, 0))
-
-          if fb_raw != 2:
+          valid, _ = query_and_collect(
+              query_features, query_components, human, agent, config_inv_spec,
+              collect_undistinguished
+          )
+          if valid:
             n_fb += 1
-            if fb_raw == 0:
-              fb_invspec = 1
-            elif fb_raw == 1:
-              fb_invspec = -1
-            agent.store_feedback(q_1, q_2, fb_invspec)
-          elif collect_undistinguished:
-            n_fb += 1
-            eps = np.random.uniform()
-            fb_invspec = 1 if eps > 0.5 else -1
-            agent.store_feedback(q_1, q_2, fb_invspec)
 
         n_acc_fb = agent.get_number_feedback()
         print(
@@ -410,7 +395,7 @@ def main(config_file, config_dict):
 
   features = -res.F
   fig = plot_result_pairwise(
-      n_obj, features, objective_names, axis_bound=objectives_bound,
+      n_obj, features, feature_names, axis_bound=features_bound,
       n_col_default=5, subfigsz=4, fsz=16, sz=20
   )
   fig.tight_layout()
