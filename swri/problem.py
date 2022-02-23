@@ -2,6 +2,7 @@
 # Authors: Kai-Chieh Hsu ( kaichieh@princeton.edu )
 
 from abc import ABC
+import copy
 import numpy as np
 from functools import partial
 from multiprocessing.dummy import Pool
@@ -145,7 +146,7 @@ class SWRISimParallel(SWRIWrapper):
     )
 
   def get_fetures(
-      self, X, delete_folder=True, get_score=False, get_all=False, *args,
+      self, X, delete_folder=False, get_score=False, get_all=False, *args,
       **kwargs
   ):
     pool = Pool(self.num_workers)
@@ -270,7 +271,11 @@ class SWRIProblemInvSpec(Problem):
     )
 
     # InvSpec
-    self.inference = inference
+    self.inference = copy.deepcopy(inference)
+
+  def update_inference(self, inference):
+    del self.inference
+    self.inference = copy.deepcopy(inference)
 
   def get_all(self, X):
     features, oracle_scores = self.sim.get_fetures(X, get_all=True)
