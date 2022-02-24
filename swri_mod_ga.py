@@ -7,7 +7,6 @@ import copy
 import numpy as np
 import matplotlib.pyplot as plt
 import argparse
-import pickle
 
 os.sys.path.append(os.path.join(os.getcwd(), 'src'))
 
@@ -24,8 +23,7 @@ from pymoo.operators.mixed_variable_operator import (
 
 # others
 from utils import (
-    set_seed, save_obj, load_obj, plot_result_pairwise, plot_single_objective,
-    normalize
+    set_seed, save_obj, load_obj, plot_result_pairwise, plot_single_objective
 )
 from config.config import load_config
 from shutil import copyfile
@@ -141,7 +139,6 @@ def main(config_file, config_dict):
   print("\n== Optimization starts ...")
   # perform a copy of the algorithm to ensure reproducibility
   obj = copy.deepcopy(algorithm)
-  # obj.fitness_func = lambda x: 1.
 
   # let the algorithm know what problem we are intending to solve and provide
   # other attributes
@@ -233,7 +230,7 @@ if __name__ == "__main__":
   parser = argparse.ArgumentParser()
   parser.add_argument(
       "-cf", "--config_file", help="config file path", type=str,
-      default=os.path.join("config", "swri_mod_ga.yaml")
+      default=os.path.join("config", "swri_mod_ga_heap.yaml")
   )
   args = parser.parse_args()
   config_dict = load_config(args.config_file)

@@ -1,0 +1,10 @@
+GENERAL:
+  SEED: 9
+  CHECK_GEN: 1
+  NUM_WORKERS: 10
+  NAME: test_heap_50q/10
+  AGENT_PATH: scratch/swri/modular/agent_heap_50q/10/agent
+
+GA:
+  POP_SIZE: 25
+  NUM_GEN: 30

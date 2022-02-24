@@ -1,10 +1,10 @@
 GENERAL:
-  SEED: 4
+  SEED: 5
   CHECK_GEN: 1
-  NUM_WORKERS: 9
-  NAME: test_buffer_200_5
-  # AGENT_PATH: scratch/swri/modular/agent/agent
-  AGENT_PATH: scratch/swri/modular/buffer/agent
+  NUM_WORKERS: 9 
+  NAME: test_buffer_40q/6
+  AGENT_PATH: scratch/swri/modular/agent_buffer_40q/6/agent
+
 
 GA:
   POP_SIZE: 25

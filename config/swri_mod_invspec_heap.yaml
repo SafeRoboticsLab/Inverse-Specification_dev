@@ -1,27 +1,20 @@
 GENERAL:
-  SEED: 2
-  CHECK_GEN: 1
-  NAME: test3
+  SEED: 9
+  EARLY_NAME: agent_heap_50q/10
+  NAME: agent_heap_200/10
   NUM_WORKERS: 10
 
-GA:
-  POP_SIZE: 25
-  NUM_GEN: 11
-  INIT_OBJ_PATH: /Users/kaichieh/Desktop/SDCPS/src/scratch/swri/NSGA2/default3/objective_20
-
 INV_SPEC:
-  # QUERY_SELECTOR_TYPE: ig
   INFER_TYPE: gp
   POP_EXTRACT_TYPE: F
   BETA: 10.  # confidence coefficient
   INPUT_NORMALIZE: true
-  MAX_QUERIES: 100
-  # region: init
-  MAX_ITER: 100
-  REQUIRED_FB: 10
-  # endregion
-  INTERACT_PERIOD: 2
-  MAX_QUERIES_PER: 5
+  NUM_REQUIRED_QUERY: 3
+  MAX_ITER: 2000
+  REQUIRED_FB: 200
+  MAX_ASK: 4000000
+  EARLY_STORE: 50
+  RANDOM_SELECT_RATE: 0.5
 
 GP:
   HORIZONTAL_LENGTH: 0.3  # ell in RBF kernel

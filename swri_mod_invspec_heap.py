@@ -1,10 +1,13 @@
 # Please contact the author(s) of this library if you have any questions.
 # Authors: Kai-Chieh Hsu ( kaichieh@princeton.edu )
 
+import copy
 import time
 import os
 import numpy as np
 import argparse
+import functools
+from queue import PriorityQueue
 
 os.sys.path.append(os.path.join(os.getcwd(), 'src'))
 
@@ -21,9 +24,7 @@ from invspec.querySelector.random_selector import RandomQuerySelector
 from invspec.inference.reward_GP import RewardGP
 
 # others
-from utils import (
-    set_seed, save_obj, normalize, query_and_collect, sample_and_evaluate
-)
+from utils import (set_seed, save_obj, query_and_collect, sample_and_evaluate)
 from config.config import load_config
 from shutil import copyfile
 
@@ -44,10 +45,13 @@ def main(config_file, config_dict):
   config_human = config_dict['HUMAN']
 
   out_folder = os.path.join('scratch', 'swri', 'modular')
+  early_folder = os.path.join(out_folder, config_general.EARLY_NAME)
+  os.makedirs(early_folder, exist_ok=True)
   if config_general.NAME is not None:
     out_folder = os.path.join(out_folder, config_general.NAME)
   os.makedirs(out_folder, exist_ok=True)
   copyfile(config_file, os.path.join(out_folder, 'config_invspec.yaml'))
+  copyfile(config_file, os.path.join(early_folder, 'config_invspec.yaml'))
 
   # endregion
 
@@ -65,18 +69,6 @@ def main(config_file, config_dict):
   print('objectives', objective_names)
   print('inputs:', problem.input_names)
 
-  x = np.array([[
-      3.9971661079507594, 3.6711272495701843, 3.3501992857774856,
-      3.0389318577493087, 4.422413267471787, 17.
-  ]])
-  y = {}
-  problem._evaluate(x, y)
-  print("\nGet the output from the problem:")
-  print(y['F'])
-  y = {}
-  problem._evaluate(x, y)
-  print(y['scores'])
-
   objectives_bound = np.array([
       [0, 4000],
       [-400, 0],
@@ -84,7 +76,6 @@ def main(config_file, config_dict):
       [-50, 0.],
       [-12, 0.],
   ])
-  scores_bound = np.array([-1e-8, 430])
   input_names_dict = {}
   for i in range(len(problem.input_names)):
     input_names_dict['o' + str(i + 1)] = problem.input_names[i][8:]
@@ -94,7 +85,6 @@ def main(config_file, config_dict):
   # endregion
 
   # region: == Define Human Simulator ==
-  print("\n== Human Simulator ==")
   active_constraint_set = None
   if config_human.TYPE == 'has_const':
     active_constraint_set = [['0', 0.2], ['1', 0.2]]
@@ -160,47 +150,78 @@ def main(config_file, config_dict):
   # endregion
 
   # region: == Inverse Specification Starts ==
-  effective_query = []
-  update_times = 0
   num_query_per_batch = int(config_general.NUM_WORKERS / 2)
-  n_ask = 0
+  designs_heap = PriorityQueue()
+
+  # Define class Design for heap
+  @functools.total_ordering
+  class Design:
+
+    def __init__(self, features, components):
+      self.features = features
+      self.components = components
+
+    def __repr__(self):
+      return (
+          "Design: features(" + repr(self.features) + "), components("
+          + repr(self.components) + ")"
+      )
+
+    def __gt__(self, other):
+      query_features = np.concatenate((self.features, other.features), axis=0)
+      query_components = np.concatenate((self.components, other.components),
+                                        axis=0)
+
+      fb_invspec, _ = query_and_collect(
+          query_features, query_components, human, agent, config_inv_spec,
+          collect_undistinguished=False
+      )
+      return fb_invspec == 1
+
+    def __eq__(self, other):
+      #! hacky: just assume not distinguished (equal) one is lower than to
+      #! prevent asking same query for two times
+      return False
 
   # get the first valid query
   valid = False
-  valid_query = None
   cnt = 0
-  while valid_query is None:
+  while designs_heap.empty():
     print(cnt, end=': ')
     # randomly sample component values
     components, y = sample_and_evaluate(
         problem, component_values_bound, config_general.NUM_WORKERS
     )
     features = y['F']
-    oracle_scores_all = y['scores']
 
     for i in range(num_query_per_batch):
       start, end = 2 * i, 2*i + 2
 
       query_features = -features[start:end, :]
       query_components = components[start:end, :]
-      oracle_scores = oracle_scores_all[start:end]
 
-      valid, inputs_to_invspec = query_and_collect(
+      valid, _ = query_and_collect(
           query_features, query_components, human, agent, config_inv_spec
       )
-      n_ask += 1
       if valid:
-        effective_query.append([inputs_to_invspec, oracle_scores])
-        valid_query = (query_features, query_components, oracle_scores)
-        print("Get the first valid query!\n\n")
+        print("Get the first valid query: {}!".format(valid), end="\n\n")
+        if valid == 1:
+          designs_heap.put(
+              Design(query_features[0:1, :], query_components[0:1, :])
+          )
+        else:
+          designs_heap.put(
+              Design(query_features[1:2, :], query_components[1:2, :])
+          )
         break
     cnt += 1
 
-  early_terminate = False
-  # keep a valid query in buffer
+  # keep a heap
+  stored_early = False
   for num_iter in range(config_inv_spec.MAX_ITER):
-    print(num_iter, end=': ')
+    print("\nAfter", num_iter, "main iterations", end=': ')
     n_acc_fb = agent.get_number_feedback()
+    n_ask = human.get_num_ranking_queries()
     print("Collect {:d} feedback out of {:d} queries".format(n_acc_fb, n_ask))
     if stop_asking(n_acc_fb, n_ask, config_inv_spec):
       break
@@ -209,91 +230,58 @@ def main(config_file, config_dict):
         problem, component_values_bound, config_general.NUM_WORKERS
     )
     features = y['F']
-    oracle_scores_all = y['scores']
 
-    # compare the new designs with the old designs (valid query) in the buffer
+    # compare the new designs with the old designs in the heap
     for i in range(config_general.NUM_WORKERS):
       n_acc_fb = agent.get_number_feedback()
+      n_ask = human.get_num_ranking_queries()
+      if n_ask >= config_inv_spec.EARLY_STORE and not stored_early:
+        agent.learn()
+        stored_early = True
+        save_obj(copy.deepcopy(agent), os.path.join(early_folder, 'agent'))
       if stop_asking(n_acc_fb, n_ask, config_inv_spec):
         break
+      print("Testing", "new design", i, end=":")
       new_feature = -features[i:i + 1, :]
       new_component = components[i:i + 1, :]
-      new_oracle_score = oracle_scores_all[i:i + 1]
-
-      valid_list = [False, False]
-      candidate_query_list = [None, None]
-      for j in range(2):
-        n_acc_fb = agent.get_number_feedback()
-        if stop_asking(n_acc_fb, n_ask, config_inv_spec):
-          break
-        old_feature = valid_query[0][j:j + 1, :]
-        old_component = valid_query[1][j:j + 1, :]
-        old_oracle_score = valid_query[2][j:j + 1, :]
-        query_features = np.concatenate((old_feature, new_feature), axis=0)
-        query_components = np.concatenate((old_component, new_component),
-                                          axis=0)
-        oracle_scores = np.concatenate((old_oracle_score, new_oracle_score))
-
-        valid, inputs_to_invspec = query_and_collect(
-            query_features, query_components, human, agent, config_inv_spec
-        )
-        candidate_query_list[j] = (
-            query_features, query_components, oracle_scores
-        )
-        n_ask += 1
-        if valid:
-          effective_query.append([inputs_to_invspec, oracle_scores])
-          valid_list[j] = True
-
-      if valid_list[0]:
-        if not valid_list[1]:
-          valid_query = candidate_query_list[0]
+      # select the worst effective design or a random design in the buffer
+      if np.random.rand() > config_inv_spec.RANDOM_SELECT_RATE:
+        old_feature = designs_heap.queue[0].features
+        old_component = designs_heap.queue[0].components
+      else:
+        if designs_heap.qsize() == 1:
+          index = 0
         else:
-          valid_query = candidate_query_list[np.random.choice(2)]
-      elif valid_list[1]:
-        valid_query = candidate_query_list[1]
+          index = np.random.choice(designs_heap.qsize() - 1) + 1
+        old_feature = designs_heap.queue[index].features
+        old_component = designs_heap.queue[index].components
 
-    # update fitness function
-    if (
-        early_terminate
-        and len(effective_query) >= config_inv_spec.NUM_REQUIRED_QUERY
-    ):
-      update_times += 1
-      print("\nUpdate:")
-      _ = agent.learn()
-
-      # report
-      normalized_oracle_scores = np.empty(shape=(2 * len(effective_query),))
-      predicted_scores = np.empty(shape=(2 * len(effective_query),))
-      for i, (inputs_to_invspec, oracle_scores) in enumerate(effective_query):
-        start, end = 2 * i, 2*i + 2
-        predicted_scores[start:end] = agent.inference.eval(inputs_to_invspec)
-        normalized_oracle_scores[start:end] = normalize(
-            oracle_scores.reshape(-1), scores_bound[0], scores_bound[1]
-        )
-
-      ratio = np.max(normalized_oracle_scores) / np.max(predicted_scores)
-      scaled_predicted_scores = predicted_scores * ratio
-      error = np.mean((normalized_oracle_scores - scaled_predicted_scores)**2)
-
-      with np.printoptions(formatter={'float': '{: 2.2f}'.format}):
-        print(normalized_oracle_scores, scaled_predicted_scores, error)
-      effective_query = []
-      if error <= 1e-6:
-        break
+      query_features = np.concatenate((old_feature, new_feature), axis=0)
+      query_components = np.concatenate((old_component, new_component), axis=0)
+      valid, _ = query_and_collect(
+          query_features, query_components, human, agent, config_inv_spec
+      )
+      if valid == -1:  # new design is preferred
+        designs_heap.put(Design(new_feature, new_component))
+        print("Heap now has {} designs".format(designs_heap.qsize()))
 
   agent.learn()
+  save_obj(agent, os.path.join(out_folder, 'agent'))
+  components = []
+  for design in designs_heap.queue:
+    components.append(design.components.reshape(-1))
+  y = {}
+  components = np.array(components)
+  problem._evaluate(components, y)
+  print(y['scores'])
   # endregion
-
-  agent_path = os.path.join(out_folder, 'agent')
-  save_obj(agent, agent_path)
 
 
 if __name__ == "__main__":
   parser = argparse.ArgumentParser()
   parser.add_argument(
       "-cf", "--config_file", help="config file path", type=str,
-      default=os.path.join("config", "swri_mod_invspec.yaml")
+      default=os.path.join("config", "swri_mod_invspec_heap.yaml")
   )
   args = parser.parse_args()
   config_dict = load_config(args.config_file)

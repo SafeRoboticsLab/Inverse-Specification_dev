@@ -1,7 +1,7 @@
 # Please contact the author(s) of this library if you have any questions.
 # Authors: Kai-Chieh Hsu ( kaichieh@princeton.edu )
 # example: python3 swri_ga.py -n default1 -rnd 0
-# python swri_ga.py -cg 1 -ng 11 -init /Users/kaichieh/Desktop/SDCPS/src/scratch/swri/NSGA2/default/objective_20 -n test1 -rnd 0
+# python swri_ga.py -ng 11 -init /Users/kaichieh/Desktop/SDCPS/src/scratch/swri/NSGA2/default/objective_20 -n test1 -rnd 0
 
 import time
 import os
