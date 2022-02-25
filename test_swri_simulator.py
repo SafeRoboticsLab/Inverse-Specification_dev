@@ -3,14 +3,15 @@ import time
 import numpy as np
 from swri.flight_dynamics import SWRIFlightDynamics, SWRIFlightDynamicsParallel
 from swri.problem import SWRIElementwiseProblem, SWRIProblem
+from utils import sample_and_evaluate, set_seed
 
 # template_file: the path to the architecture of the aircraft
 # exec_file: the path to the flight dynamics model
 TEMPLATE_FILE = os.path.join('swri', 'template', 'FlightDyn_quadH.inp')
 EXEC_FILE = os.path.join('swri', "new_fdm")
 speed_list = (np.arange(10) + 1) * 5
-test_simulator = True
-test_problem_wrapper = True
+test_simulator = False
+test_problem_wrapper = False
 
 # test simulator
 if test_simulator:
@@ -109,3 +110,27 @@ if test_problem_wrapper:
       X[2:3], out_tmp, get_score=False, delete_folder=False
   )
   print(out_tmp["F"])
+
+if True:
+  # X = np.empty(shape=(len(speed_list), 6))
+  # X[:, 0] = 3.9971661079507594
+  # X[:, 1] = 3.6711272495701843
+  # X[:, 2] = 3.3501992857774856
+  # X[:, 3] = 3.0389318577493087
+  # X[:, 4] = 4.422413267471787
+  # X[:, 5] = speed_list
+  set_seed(seed_val=0, use_torch=False)
+
+  problem = SWRIProblem(TEMPLATE_FILE, EXEC_FILE, 5)
+  component_values_bound = np.concatenate(
+      (problem.xl[:, np.newaxis], problem.xu[:, np.newaxis]), axis=1
+  )
+  components, y = sample_and_evaluate(problem, component_values_bound, 5)
+
+  with np.printoptions(formatter={'float': '{: .4e}'.format}):
+    print("components:")
+    print(components)
+    # print(y["scores"])
+
+    print("\nfeatures:")
+    print(y["F"])
