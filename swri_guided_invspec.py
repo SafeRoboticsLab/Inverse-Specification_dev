@@ -3,10 +3,12 @@
 
 import time
 import os
+import functools
 import numpy as np
 import argparse
 import copy
 import matplotlib.pyplot as plt
+from queue import PriorityQueue
 
 os.sys.path.append(os.path.join(os.getcwd(), 'src'))
 
@@ -163,29 +165,94 @@ def main(config_file, config_dict):
   # endregion
 
   # region: == Inverse Specification Inits ==
+  @functools.total_ordering
+  class Design:
+
+    def __init__(self, features, components):
+      self.features = features
+      self.components = components
+
+    def __repr__(self):
+      return (
+          "Design: features(" + repr(self.features) + "), components("
+          + repr(self.components) + ")"
+      )
+
+    def __gt__(self, other):
+      query_features = np.concatenate((self.features, other.features), axis=0)
+      query_components = np.concatenate((self.components, other.components),
+                                        axis=0)
+
+      fb_invspec, _ = query_and_collect(
+          query_features, query_components, human, agent, config_inv_spec,
+          collect_undistinguished=False
+      )
+      return fb_invspec == 1
+
+    def __eq__(self, other):
+      #! hacky: just assume not distinguished (equal) one is lower than to
+      #! prevent asking same query for two times
+      return False
+
+  designs_heap = PriorityQueue()
   num_query_per_batch = int(config_general.NUM_WORKERS / 2)
   init_obj_pop = load_obj(config_ga.INIT_OBJ_PATH)
   features = -init_obj_pop.get('F')  # we want to maximize
   components = init_obj_pop.get('X')
-  n_ask = 0
-  for num_iter in range(config_inv_spec.MAX_ITER):
-    print(num_iter, end=': ')
-    indices = agent.get_query(init_obj_pop, num_query_per_batch)
 
+  for num_iter in range(config_inv_spec.MAX_ITER):
+    n_ask = human.get_num_ranking_queries()
+    if n_ask >= config_inv_spec.MAX_QUERIES_INIT:
+      break
+    print(num_iter, end=': ')
+
+    # get sampled designs
+    if designs_heap.empty():
+      indices = agent.get_query(init_obj_pop, num_query_per_batch)
+    else:
+      indices = np.random.choice(config_ga.POP_SIZE, num_query_per_batch)
+
+    # interact with human
     for idx in indices:
-      query_features = features[idx, :]
-      query_components = components[idx, :]
-      query_and_collect(
+      n_ask = human.get_num_ranking_queries()
+      if n_ask >= config_inv_spec.MAX_QUERIES_INIT:
+        break
+      if designs_heap.empty():
+        query_features = features[idx, :]
+        query_components = components[idx, :]
+      else:
+        new_feature = features[idx:idx + 1, :]
+        new_component = components[idx:idx + 1, :]
+        if designs_heap.qsize() == 1:
+          idx_heap = 0
+        else:
+          idx_heap = np.random.choice(designs_heap.qsize() - 1) + 1
+        old_feature = designs_heap.queue[idx_heap].features
+        old_component = designs_heap.queue[idx_heap].components
+        query_features = np.concatenate((old_feature, new_feature), axis=0)
+        query_components = np.concatenate((old_component, new_component),
+                                          axis=0)
+      valid, _ = query_and_collect(
           query_features, query_components, human, agent, config_inv_spec
       )
-      n_ask += 1
-
-      n_acc_fb = agent.get_number_feedback()
-      if n_acc_fb >= config_inv_spec.REQUIRED_FB:
+      if designs_heap.empty() and valid:
+        if valid == 1:
+          designs_heap.put(
+              Design(query_features[0:1, :], query_components[0:1, :])
+          )
+        else:
+          designs_heap.put(
+              Design(query_features[1:2, :], query_components[1:2, :])
+          )
+        print("Get the first valid query: {}!".format(valid))
         break
+      elif valid == -1:  # new design is preferred
+        designs_heap.put(Design(new_feature, new_component))
+        print("Heap now has {} designs".format(designs_heap.qsize()))
+
+    n_ask = human.get_num_ranking_queries()
+    n_acc_fb = agent.get_number_feedback()
     print("Collect {:d} feedback out of {:d} queries".format(n_acc_fb, n_ask))
-    if n_acc_fb >= config_inv_spec.REQUIRED_FB:
-      break
 
   # learn and save
   agent.learn()
@@ -312,37 +379,52 @@ def main(config_file, config_dict):
     time2update = (obj.n_gen - 1) % config_inv_spec.INTERACT_PERIOD == 0
     if time2update and (obj.n_gen < config_ga.NUM_GEN) and (obj.n_gen > 1):
       print("\nAt generation {}".format(obj.n_gen))
-      features = -obj.pop.get('F')  # we want to maximize
       components = obj.pop.get('X')
+      features, _, _ = problem.get_all(component_values)
 
       n_acc_fb = agent.get_number_feedback()
       n_want = config_inv_spec.MAX_QUERIES_PER
       if n_acc_fb + n_want > config_inv_spec.MAX_QUERIES:
-        n_ask = n_want - n_acc_fb
+        n_select = n_want - n_acc_fb
       else:
-        n_ask = n_want
+        n_select = n_want
 
-      if n_ask > 0:
+      if n_select > 0:
         # 1. pick and send queries to humans
         # we need obj.pop since single-objective optimization only has one
         # optimum.
-        indices = agent.get_query(obj.pop, n_ask)
+        # indices = agent.get_query(obj.pop, n_select)
+        indices = np.random.choice(config_ga.POP_SIZE, n_select)
 
         # 2. get feedback from humans
-        n_fb = 0
         for idx in indices:
-          query_features = features[idx, :]
-          query_components = components[idx, :]
+          # query_features = features[idx, :]
+          # query_components = components[idx, :]
+          new_feature = features[idx:idx + 1, :]
+          new_component = components[idx:idx + 1, :]
+          if designs_heap.qsize() == 1:
+            idx_heap = 0
+          else:
+            idx_heap = np.random.choice(designs_heap.qsize() - 1) + 1
+          old_feature = designs_heap.queue[idx_heap].features
+          old_component = designs_heap.queue[idx_heap].components
+          query_features = np.concatenate((old_feature, new_feature), axis=0)
+          query_components = np.concatenate((old_component, new_component),
+                                            axis=0)
+
           valid, _ = query_and_collect(
               query_features, query_components, human, agent, config_inv_spec
           )
-          if valid:
-            n_fb += 1
+          if valid == -1:  # new design is preferred
+            designs_heap.put(Design(new_feature, new_component))
+            print("Heap now has {} designs".format(designs_heap.qsize()))
 
+        n_ask = human.get_num_ranking_queries()
         n_acc_fb = agent.get_number_feedback()
         print(
-            "Collect {:d} feedback out of {:d} queries".format(n_fb, n_ask),
-            "Accumulated {:d} feedback".format(n_acc_fb)
+            "Collect {:d} feedback out of {:d} queries".format(
+                n_acc_fb, n_ask
+            )
         )
 
         # 3. update fitness function
