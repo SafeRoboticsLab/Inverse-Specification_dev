@@ -48,21 +48,20 @@ class Inference(ABC):
                 self.pop_extract_type
             )
         )
-
-      if self.input_normalize:  # normalize by a priori input_min and input_max
-        input = self.normalize(ind * designs.get(self.pop_extract_type))
-      else:
-        input = ind * designs.get(self.pop_extract_type)
+      input = ind * designs.get(self.pop_extract_type)
     elif isinstance(designs, np.ndarray):
       input = designs
     else:
       raise ValueError(
           "Designs must be either pymoo:Population or numpy:array!"
       )
+    if self.input_normalize:  # normalize by a priori input_min and input_max
+      input = self.normalize(input)
 
     return input.astype('float32')
 
-  def eval(self, pop: Population, **kwargs) -> Union[Population, np.ndarray]:
+  def eval(self, pop: Union[Population, np.ndarray],
+           **kwargs) -> Union[Population, np.ndarray]:
     """
     A wrapper for fitness evaluation. If the designs are presented in the
     format of Pymoo:population, we extract the obejectives and normalize if
@@ -85,9 +84,7 @@ class Inference(ABC):
       return fitness
 
   @abstractmethod
-  def _eval(
-      self, input: Union[Population, np.ndarray], **kwargs
-  ) -> np.ndarray:
+  def _eval(self, input: np.ndarray, **kwargs) -> np.ndarray:
     """
     Evaluates the fitness according to the (normalized) obejective
     measurements. The child class must implement this function.
@@ -100,20 +97,20 @@ class Inference(ABC):
 
   def eval_query(
       self, query: Union[Population, np.ndarray], **kwargs
-  ) -> np.ndarray:
+  ) -> float:
     """
     Evaluates the query. For example, the evaluation can base on information
     gain or value of information
 
     Args:
-        query: a pair of designs, of shape (2,)
+        query: a pair of designs.
     """
     input = self.design2input(query)
     metric = self._eval_query(input, **kwargs)
     return metric
 
   @abstractmethod
-  def _eval_query(self, input: np.ndarray, **kwargs) -> np.ndarray:
+  def _eval_query(self, input: np.ndarray, **kwargs) -> float:
     """
     Evaluate the quality of the query. The child class must implement this
     function.

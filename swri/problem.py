@@ -280,7 +280,8 @@ class SWRIProblemInvSpec(Problem):
   def get_all(self, X):
     features, oracle_scores = self.sim.get_fetures(X, get_all=True)
     # negative sign changes from minimization to maximization
-    inputs_to_invspec = self.inference.normalize(-features)
+    # inputs_to_invspec = self.inference.normalize(-features)
+    inputs_to_invspec = -features
     predicted_scores = self.inference.eval(inputs_to_invspec)
     return -features, oracle_scores.reshape(-1), predicted_scores.reshape(-1)
 
@@ -288,7 +289,8 @@ class SWRIProblemInvSpec(Problem):
     features, out['scores'] = self.sim.get_fetures(
         X, get_all=True, *args, **kwargs
     )
-    inputs_to_invspec = self.inference.normalize(-features)
+    # inputs_to_invspec = self.inference.normalize(-features)
+    inputs_to_invspec = -features
     out['F'] = -self.inference.eval(
         inputs_to_invspec
     )  # pymoo wants to minimize
