@@ -27,8 +27,11 @@ class InvSpec(object):
   def evaluate(self, pop, **kwargs):
     return self.inference.eval(pop, **kwargs)
 
-  def get_query(self, pop, n_queries, n_designs=2, **kwargs):
-    eval_func = kwargs.get('eval_func', self.inference.eval_query)
+  def get_query(
+      self, pop, n_queries, n_designs=2, eval_func=None, **kwargs
+  ) -> np.ndarray:
+    if eval_func is None:
+      eval_func = self.inference.eval_query
     return self.query_selector.do(
         pop, n_queries, n_designs, eval_func=eval_func,
         update_times=self.inference.update_times, **kwargs

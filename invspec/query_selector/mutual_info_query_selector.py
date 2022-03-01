@@ -17,8 +17,13 @@ class MutualInfoQuerySelector(QuerySelector):
     super().__init__()
 
   def _do(
-      self, pop: Union[Population, np.ndarray], n_queries: int, n_designs: int,
-      eval_func: Callable[[np.ndarray], float], update_times: int, **kwargs
+      self,
+      pop: Union[Population, np.ndarray],
+      n_queries: int,
+      n_designs: int,
+      eval_func: Callable[[Union[Population, np.ndarray]], float],
+      update_times: int,
+      **kwargs,
   ) -> np.ndarray:
     """
     Picks the most informative pairs of designs out of the current population,
