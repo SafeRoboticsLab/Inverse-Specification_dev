@@ -1,33 +1,36 @@
 # from abc import abstractmethod
 import numpy as np
 
-from invspec.querySelector.random_selector import RandomQuerySelector
+from invspec.query_selector.random_selector import RandomQuerySelector
 
 
 class InvSpec(object):
 
-  def __init__(self, inference, querySelector=RandomQuerySelector(), **kwargs):
+  def __init__(
+      self, inference, query_selector=RandomQuerySelector(), **kwargs
+  ):
     """
 
     Args:
         inference (:class: `Inference`): specific inference method used to
             provide human fitness.
-        querySelector (:class: `QuerySelector`): specific query selection
+        query_selector (:class: `query_selector`): specific query selection
             method. Defaults to RandomQuerySelector().
     """
 
     super().__init__()
 
     self.inference = inference
-    self.querySelector = querySelector
+    self.query_selector = query_selector
 
   #== INTERACT WITH GA AND HUMAN ==
   def evaluate(self, pop, **kwargs):
     return self.inference.eval(pop, **kwargs)
 
   def get_query(self, pop, n_queries, n_designs=2, **kwargs):
-    return self.querySelector.do(
-        pop, n_queries, n_designs, evalFunc=self.inference.eval_query, **kwargs
+    eval_func = kwargs.get('eval_func', self.inference.eval_query)
+    return self.query_selector.do(
+        pop, n_queries, n_designs, eval_func=eval_func, **kwargs
     )
 
   def normalize(self, F):

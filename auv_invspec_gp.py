@@ -30,8 +30,8 @@ from humansim.ranker.pair_ranker import PairRankerWeights
 # inverse specification module
 from funct_approx.config import GPConfig
 from invspec.inv_spec import InvSpec
-from invspec.querySelector.random_selector import RandomQuerySelector
-from invspec.querySelector.mutual_info_query_selector import (
+from invspec.query_selector.random_selector import RandomQuerySelector
+from invspec.query_selector.mutual_info_query_selector import (
     MutualInfoQuerySelector
 )
 from invspec.inference.reward_GP import RewardGP
@@ -187,7 +187,7 @@ def main(config_file, config_dict):
             dimension, 0, CONFIG, initial_point, input_min=input_min,
             input_max=input_max, input_normalize=input_normalize,
             pop_extract_type=config_inv_spec.POP_EXTRACT_TYPE, verbose=True
-        ), querySelector=RandomQuerySelector()
+        ), query_selector=RandomQuerySelector()
     )
   else:
     agent = InvSpec(
@@ -195,7 +195,7 @@ def main(config_file, config_dict):
             dimension, 0, CONFIG, initial_point, input_min=input_min,
             input_max=input_max, input_normalize=input_normalize,
             pop_extract_type=config_inv_spec.POP_EXTRACT_TYPE, verbose=True
-        ), querySelector=MutualInfoQuerySelector()
+        ), query_selector=MutualInfoQuerySelector()
     )
   # endregion
 
