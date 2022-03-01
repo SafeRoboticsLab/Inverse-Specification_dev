@@ -17,17 +17,16 @@ class MutualInfoQuerySelector(QuerySelector):
     super().__init__()
 
   def _do(
-      self, pop: Union[Population, np.ndarray], n_queries, n_designs, **kwargs
+      self, pop: Union[Population, np.ndarray], n_queries: int, n_designs: int,
+      **kwargs
   ) -> np.ndarray:
     """
-    pick the most informative pairs of designs out of the current population,
+    Picks the most informative pairs of designs out of the current population,
     the metric is based on mutual information (a.k.a information gain).
 
     Args:
-        pop (:class:`~pymoo.core.population.Population`): The population
-            which should be selected from. Some criteria from the design or
-            objective space might be used for the selection. Therefore,
-            only the number of individual might be not enough.
+        pop (pymoo.core.population.Population | numpy.ndarray): The population
+            which should be selected from.
         n_queries (int): Number of queries to send.
         n_designs (int): Number of designs in each query.
 
