@@ -1,6 +1,7 @@
 # Please contact the author(s) of this library if you have any questions.
 # Authors: Kai-Chieh Hsu ( kaichieh@princeton.edu )
 
+from typing import Any, Tuple
 import time
 import os
 import functools
@@ -22,6 +23,7 @@ from humansim.ranker.pair_ranker import PairRankerSimulator
 from funct_approx.config import GPConfig
 from invspec.inv_spec import InvSpec
 from invspec.query_selector.random_selector import RandomQuerySelector
+from invspec.query_selector.upper_confidence_selector import UCBQuerySelector
 from invspec.inference.reward_GP import RewardGP
 
 # design optimization module
@@ -42,7 +44,27 @@ from config.config import load_config
 from shutil import copyfile
 
 
-def main(config_file, config_dict):
+def get_design_from_heap(heap: PriorityQueue) -> Any:
+  assert not heap.empty(), "The heap is empty!"
+  if heap.qsize() == 1:
+    idx_heap = 0
+  else:
+    idx_heap = np.random.choice(heap.qsize() - 1) + 1
+
+  return heap.queue[idx_heap]
+
+
+def transform_idx2design(
+    idx: int, heap: PriorityQueue, features: np.ndarray, components: np.ndarray
+) -> Tuple[bool, np.ndarray, np.ndarray]:
+  if idx == -1:
+    old_design = get_design_from_heap(heap)
+    return True, old_design.features, old_design.components
+  else:
+    return False, features[idx:idx + 1, :], components[idx:idx + 1, :]
+
+
+def main(config_file: str, config_dict: dict) -> None:
   # region: == init ==
   config_general = config_dict['GENERAL']
   config_ga = config_dict['GA']
@@ -154,13 +176,18 @@ def main(config_file, config_dict):
     input_min = None
     input_max = None
 
+  if config_inv_spec.QUERY_SELECTOR_TYPE == "ucb":
+    query_selector_class = UCBQuerySelector
+  else:
+    query_selector_class = RandomQuerySelector
+
   agent = InvSpec(
       inference=RewardGP(
           dimension, 0, CONFIG, initial_point, input_min=input_min,
           input_max=input_max, input_normalize=input_normalize,
           pop_extract_type=config_inv_spec.POP_EXTRACT_TYPE, verbose=True
       ),
-      query_selector=RandomQuerySelector(),
+      query_selector=query_selector_class(),
   )
   # endregion
 
@@ -393,30 +420,63 @@ def main(config_file, config_dict):
         # 1. pick and send queries to humans
         # we need obj.pop since single-objective optimization only has one
         # optimum.
-        # indices = agent.get_query(obj.pop, n_select)
-        indices = np.random.choice(config_ga.POP_SIZE, n_select)
+        if config_inv_spec.QUERY_SELECTOR_TYPE == "ucb":
+          indices = agent.get_query(
+              obj.pop, n_select, eval_func=agent.inference.get_ucb,
+              add_cur_best=True
+          )  # n_select pairs
+        else:
+          indices = np.random.choice(config_ga.POP_SIZE, n_select)
 
         # 2. get feedback from humans
         for idx in indices:
-          # query_features = features[idx, :]
-          # query_components = components[idx, :]
-          new_feature = features[idx:idx + 1, :]
-          new_component = components[idx:idx + 1, :]
-          if designs_heap.qsize() == 1:
-            idx_heap = 0
+          if config_inv_spec.QUERY_SELECTOR_TYPE == "ucb":
+            from_heap_0, feature_0, component_0 = transform_idx2design(
+                idx[0], designs_heap, features, components
+            )
+            from_heap_1, feature_1, component_1 = transform_idx2design(
+                idx[1], designs_heap, features, components
+            )
+            has_old = from_heap_0 or from_heap_1
+
+            # if there is an old design, put it to the first of the query
+            if from_heap_1:
+              query_features = np.concatenate((feature_1, feature_0), axis=0)
+              query_components = np.concatenate((component_1, component_0),
+                                                axis=0)
+            else:
+              query_features = np.concatenate((feature_0, feature_1), axis=0)
+              query_components = np.concatenate((component_0, component_1),
+                                                axis=0)
           else:
-            idx_heap = np.random.choice(designs_heap.qsize() - 1) + 1
-          old_feature = designs_heap.queue[idx_heap].features
-          old_component = designs_heap.queue[idx_heap].components
-          query_features = np.concatenate((old_feature, new_feature), axis=0)
-          query_components = np.concatenate((old_component, new_component),
-                                            axis=0)
+            has_old = True
+            new_feature = features[idx:idx + 1, :]
+            new_component = components[idx:idx + 1, :]
+            old_design = get_design_from_heap(designs_heap)
+            old_feature = old_design.features
+            old_component = old_design.components
+            query_features = np.concatenate((old_feature, new_feature), axis=0)
+            query_components = np.concatenate((old_component, new_component),
+                                              axis=0)
 
           valid, _ = query_and_collect(
               query_features, query_components, human, agent, config_inv_spec
           )
-          if valid == -1:  # new design is preferred
-            designs_heap.put(Design(new_feature, new_component))
+          add_to_heap = False
+          if valid == -1:
+            query_idx = 1
+            add_to_heap = True
+          elif (not has_old) and (valid == 1):
+            query_idx = 0
+            add_to_heap = True
+
+          if add_to_heap:
+            designs_heap.put(
+                Design(
+                    query_features[query_idx:query_idx + 1, :],
+                    query_components[query_idx:query_idx + 1, :]
+                )
+            )
             print("Heap now has {} designs".format(designs_heap.qsize()))
 
         n_ask = human.get_num_ranking_queries()
