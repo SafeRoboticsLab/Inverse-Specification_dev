@@ -156,6 +156,7 @@ class RewardNN(Inference):
       self.initialize()
 
     #== Train ==
+    self.update_times += 1
     loss_record = np.empty(shape=(numIter, 3))
     for it in range(numIter):
       self.reward.train()

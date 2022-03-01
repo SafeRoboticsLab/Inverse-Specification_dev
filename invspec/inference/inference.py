@@ -23,6 +23,7 @@ class Inference(ABC):
   ) -> None:
 
     super().__init__()
+    self.update_times = 0
     #= ENV
     self.state_dim = state_dim
     self.action_dim = action_dim

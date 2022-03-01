@@ -120,6 +120,7 @@ class RewardGP(Inference):
     res, train_progress = self.get_mode()
     self.fmode = res.x
     self.W = self.get_W()
+    self.update_times += 1
 
     return res, train_progress
 
