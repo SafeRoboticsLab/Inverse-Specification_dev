@@ -18,8 +18,8 @@ class QuerySelector(ABC):
     self.num_query_times = 0  # number of query times (different to #queries)
 
   def do(
-      self, pop: Union[Population, np.ndarray], n_queries: int,
-      n_designs: int = 2, **kwargs
+      self, pop: Union[Population, np.ndarray], n_queries: int, n_designs: int,
+      **kwargs
   ) -> np.ndarray:
     """Choose from the population new individuals to be selected.
 

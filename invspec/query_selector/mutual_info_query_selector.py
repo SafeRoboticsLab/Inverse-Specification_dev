@@ -4,7 +4,7 @@
 # Active selection is modified from:
 # https://github.com/Stanford-ILIAD/active-preference-based-gpr
 
-from typing import Union
+from typing import Union, Callable
 import numpy as np
 from pymoo.core.population import Population
 
@@ -18,7 +18,7 @@ class MutualInfoQuerySelector(QuerySelector):
 
   def _do(
       self, pop: Union[Population, np.ndarray], n_queries: int, n_designs: int,
-      **kwargs
+      eval_func: Callable[[np.ndarray], float], update_times: int, **kwargs
   ) -> np.ndarray:
     """
     Picks the most informative pairs of designs out of the current population,
@@ -29,15 +29,17 @@ class MutualInfoQuerySelector(QuerySelector):
             which should be selected from.
         n_queries (int): Number of queries to send.
         n_designs (int): Number of designs in each query.
+        eval_func (Callable): the function for evaluating queries, which
+            returns the information gain.
+        update_times (int): Number of updates of inference engine.
 
     Returns:
         ndarray: Indices of selected individuals.
     """
     assert n_designs == 2, "Only implemented for pairs of designs!"
-    eval_func = kwargs.get('eval_func')
     n_pop = len(pop)
 
-    if self.num_query_times > 0:
+    if update_times > 0:
       # IG_mtx = np.zeros(shape=(n_pop, n_pop))
       n_values = int(n_pop * (n_pop-1) / 2)
       IG = np.zeros(shape=(n_values,))

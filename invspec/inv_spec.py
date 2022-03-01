@@ -30,7 +30,8 @@ class InvSpec(object):
   def get_query(self, pop, n_queries, n_designs=2, **kwargs):
     eval_func = kwargs.get('eval_func', self.inference.eval_query)
     return self.query_selector.do(
-        pop, n_queries, n_designs, eval_func=eval_func, **kwargs
+        pop, n_queries, n_designs, eval_func=eval_func,
+        update_times=self.inference.update_times, **kwargs
     )
 
   def normalize(self, F):
