@@ -27,9 +27,9 @@ from typing import Tuple, Union
 import numpy as np
 
 np.seterr(invalid='ignore')
-# import scipy
 from scipy import stats
 from scipy.optimize import minimize, Bounds, OptimizeResult
+from pymoo.core.population import Population
 
 from invspec.inference.inference import Inference
 
@@ -176,7 +176,10 @@ class RewardGP(Inference):
       else:
         return result1 - c_2
 
-  def get_ucb(self, Xstar: np.ndarray, tradeoff: float) -> np.ndarray:
+  def get_ucb(
+      self, design: Union[Population, np.ndarray], tradeoff: float
+  ) -> np.ndarray:
+    Xstar = self.design2input(design)
     mean = self.post_mean(Xstar)
     var = self.post_cov(Xstar).diagonal()
     return mean + tradeoff*var
