@@ -179,10 +179,24 @@ class RewardGP(Inference):
   def get_ucb(
       self, design: Union[Population, np.ndarray], tradeoff: float
   ) -> np.ndarray:
+    """Computes the upper confidence bound given designs.
+
+    Args:
+        design (Union[Population, np.ndarray]): the set of designs that you
+            want to retrieve upper confidence bound.
+        tradeoff (float): the coefficient balances mean and variance
+
+    Returns:
+        np.ndarray: _description_
+    """
     Xstar = self.design2input(design)
     mean = self.post_mean(Xstar)
-    var = self.post_cov(Xstar).diagonal()
-    return mean + tradeoff*var
+    var = np.maximum(self.post_cov(Xstar).diagonal(), 0)
+    std = np.sqrt(var)
+    # with np.printoptions(formatter={'float': '{: 2.2f}'.format}):
+    #   print("mean:", mean)
+    #   print("weighted std", tradeoff * std)
+    return mean + tradeoff*std
 
   def kernel(self, xi: np.ndarray, xj: np.ndarray) -> np.ndarray:
     """kernel function. Currently we only support RBF type kernel.
