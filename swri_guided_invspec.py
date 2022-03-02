@@ -1,7 +1,7 @@
 # Please contact the author(s) of this library if you have any questions.
 # Authors: Kai-Chieh Hsu ( kaichieh@princeton.edu )
 
-from typing import Any, Tuple
+from typing import Any, Tuple, Union
 import time
 import os
 import functools
@@ -34,6 +34,7 @@ from pymoo.algorithms.soo.nonconvex.ga import GA
 from pymoo.operators.mixed_variable_operator import (
     MixedVariableSampling, MixedVariableMutation, MixedVariableCrossover
 )
+from pymoo.core.population import Population
 
 # others
 from utils import (
@@ -42,6 +43,24 @@ from utils import (
 )
 from config.config import load_config
 from shutil import copyfile
+
+
+def get_indices(
+    agent: Any, pop: Union[Population, np.ndarray], num_query: int,
+    query_select_type: str
+) -> np.ndarray:
+  if query_select_type == "random_pair":
+    return agent.get_query(pop, num_query)
+  elif query_select_type == "rand":
+    return np.random.choice(len(pop), num_query)
+  elif query_select_type == "ucb":
+    return agent.get_query(
+        pop, num_query, eval_func=agent.inference.get_ucb, add_cur_best=True
+    )
+  else:
+    raise ValueError(
+        "query_select_type({}) not supported".format(query_select_type)
+    )
 
 
 def get_design_from_heap(heap: PriorityQueue) -> Any:
@@ -54,7 +73,7 @@ def get_design_from_heap(heap: PriorityQueue) -> Any:
   return heap.queue[idx_heap]
 
 
-def transform_idx2design(
+def idx2design(
     idx: int, heap: PriorityQueue, features: np.ndarray, components: np.ndarray
 ) -> Tuple[bool, np.ndarray, np.ndarray]:
   if idx == -1:
@@ -62,6 +81,28 @@ def transform_idx2design(
     return True, old_design.features, old_design.components
   else:
     return False, features[idx:idx + 1, :], components[idx:idx + 1, :]
+
+
+def indices2query(
+    indices: np.ndarray, heap: PriorityQueue, features: np.ndarray,
+    components: np.ndarray
+) -> Tuple[bool, np.ndarray, np.ndarray]:
+  from_heap_0, feature_0, component_0 = idx2design(
+      indices[0], heap, features, components
+  )
+  from_heap_1, feature_1, component_1 = idx2design(
+      indices[1], heap, features, components
+  )
+  has_old = from_heap_0 or from_heap_1
+
+  # if there is an old design, put it to the first of the query
+  if from_heap_1:
+    query_features = np.concatenate((feature_1, feature_0), axis=0)
+    query_components = np.concatenate((component_1, component_0), axis=0)
+  else:
+    query_features = np.concatenate((feature_0, feature_1), axis=0)
+    query_components = np.concatenate((component_0, component_1), axis=0)
+  return has_old, query_features, query_components
 
 
 def main(config_file: str, config_dict: dict) -> None:
@@ -177,17 +218,16 @@ def main(config_file: str, config_dict: dict) -> None:
     input_max = None
 
   if config_inv_spec.QUERY_SELECTOR_TYPE == "ucb":
-    query_selector_class = UCBQuerySelector
+    query_selector = UCBQuerySelector(tradeoff=config_inv_spec.TRADEOFF)
   else:
-    query_selector_class = RandomQuerySelector
+    query_selector = RandomQuerySelector()
 
   agent = InvSpec(
       inference=RewardGP(
           dimension, 0, CONFIG, initial_point, input_min=input_min,
           input_max=input_max, input_normalize=input_normalize,
           pop_extract_type=config_inv_spec.POP_EXTRACT_TYPE, verbose=True
-      ),
-      query_selector=query_selector_class(),
+      ), query_selector=query_selector
   )
   # endregion
 
@@ -217,7 +257,7 @@ def main(config_file: str, config_dict: dict) -> None:
       return fb_invspec == 1
 
     def __eq__(self, other):
-      #! hacky: just assume not distinguished (equal) one is lower than to
+      #! hacky: just assume "not distinguishable (equal)" is "lower than" to
       #! prevent asking same query for two times
       return False
 
@@ -235,9 +275,14 @@ def main(config_file: str, config_dict: dict) -> None:
 
     # get sampled designs
     if designs_heap.empty():
-      indices = agent.get_query(init_obj_pop, num_query_per_batch)
+      indices = get_indices(
+          agent, init_obj_pop, num_query_per_batch, "random_pair"
+      )
     else:
-      indices = np.random.choice(config_ga.POP_SIZE, num_query_per_batch)
+      indices = get_indices(
+          agent, init_obj_pop, num_query_per_batch,
+          config_inv_spec.QUERY_SELECTOR_TYPE
+      )
 
     # interact with human
     for idx in indices:
@@ -247,36 +292,42 @@ def main(config_file: str, config_dict: dict) -> None:
       if designs_heap.empty():
         query_features = features[idx, :]
         query_components = components[idx, :]
+        has_old = False
       else:
-        new_feature = features[idx:idx + 1, :]
-        new_component = components[idx:idx + 1, :]
-        if designs_heap.qsize() == 1:
-          idx_heap = 0
+        if config_inv_spec.QUERY_SELECTOR_TYPE == "ucb":
+          has_old, query_features, query_components = indices2query(
+              idx, designs_heap, features, components
+          )
         else:
-          idx_heap = np.random.choice(designs_heap.qsize() - 1) + 1
-        old_feature = designs_heap.queue[idx_heap].features
-        old_component = designs_heap.queue[idx_heap].components
-        query_features = np.concatenate((old_feature, new_feature), axis=0)
-        query_components = np.concatenate((old_component, new_component),
-                                          axis=0)
+          idx_tmp = np.array([-1, idx], dtype=int)
+          has_old, query_features, query_components = indices2query(
+              idx_tmp, designs_heap, features, components
+          )
       valid, _ = query_and_collect(
           query_features, query_components, human, agent, config_inv_spec
       )
-      if designs_heap.empty() and valid:
-        if valid == 1:
-          designs_heap.put(
-              Design(query_features[0:1, :], query_components[0:1, :])
-          )
-        else:
-          designs_heap.put(
-              Design(query_features[1:2, :], query_components[1:2, :])
-          )
-        print("Get the first valid query: {}!".format(valid))
-        break
-      elif valid == -1:  # new design is preferred
-        designs_heap.put(Design(new_feature, new_component))
+
+      add_to_heap = False
+      if designs_heap.empty() and valid:  # both designs are new
+        query_idx = 0 if valid == 1 else 1
+        add_to_heap = True
+      elif (not has_old) and valid:  # both designs are new
+        query_idx = 0 if valid == 1 else 1
+        add_to_heap = True
+      elif valid == -1:
+        query_idx = 1
+        add_to_heap = True
+
+      if add_to_heap:
+        designs_heap.put(
+            Design(
+                query_features[query_idx:query_idx + 1, :],
+                query_components[query_idx:query_idx + 1, :]
+            )
+        )
         print("Heap now has {} designs".format(designs_heap.qsize()))
 
+    agent.learn()
     n_ask = human.get_num_ranking_queries()
     n_acc_fb = agent.get_number_feedback()
     print("Collect {:d} feedback out of {:d} queries".format(n_acc_fb, n_ask))
@@ -418,46 +469,28 @@ def main(config_file: str, config_dict: dict) -> None:
 
       if n_select > 0:
         # 1. pick and send queries to humans
-        # we need obj.pop since single-objective optimization only has one
-        # optimum.
-        if config_inv_spec.QUERY_SELECTOR_TYPE == "ucb":
-          indices = agent.get_query(
-              obj.pop, n_select, eval_func=agent.inference.get_ucb,
-              add_cur_best=True
-          )  # n_select pairs
+        # We need obj.pop since single-objective optimization only has one
+        # optimum. Also, we passed in features/components directly since using
+        # obj.pop.get("F") returns the predicted scores!
+        if config_inv_spec.POP_EXTRACT_TYPE == "F":
+          design = features
         else:
-          indices = np.random.choice(config_ga.POP_SIZE, n_select)
+          design = components
+        indices = get_indices(
+            agent, design, n_select, config_inv_spec.QUERY_SELECTOR_TYPE
+        )
 
         # 2. get feedback from humans
         for idx in indices:
           if config_inv_spec.QUERY_SELECTOR_TYPE == "ucb":
-            from_heap_0, feature_0, component_0 = transform_idx2design(
-                idx[0], designs_heap, features, components
+            has_old, query_features, query_components = indices2query(
+                idx, designs_heap, features, components
             )
-            from_heap_1, feature_1, component_1 = transform_idx2design(
-                idx[1], designs_heap, features, components
-            )
-            has_old = from_heap_0 or from_heap_1
-
-            # if there is an old design, put it to the first of the query
-            if from_heap_1:
-              query_features = np.concatenate((feature_1, feature_0), axis=0)
-              query_components = np.concatenate((component_1, component_0),
-                                                axis=0)
-            else:
-              query_features = np.concatenate((feature_0, feature_1), axis=0)
-              query_components = np.concatenate((component_0, component_1),
-                                                axis=0)
           else:
-            has_old = True
-            new_feature = features[idx:idx + 1, :]
-            new_component = components[idx:idx + 1, :]
-            old_design = get_design_from_heap(designs_heap)
-            old_feature = old_design.features
-            old_component = old_design.components
-            query_features = np.concatenate((old_feature, new_feature), axis=0)
-            query_components = np.concatenate((old_component, new_component),
-                                              axis=0)
+            idx_tmp = [-1, idx]
+            has_old, query_features, query_components = indices2query(
+                idx_tmp, designs_heap, features, components
+            )
 
           valid, _ = query_and_collect(
               query_features, query_components, human, agent, config_inv_spec
@@ -502,6 +535,7 @@ def main(config_file: str, config_dict: dict) -> None:
 
   end_time = time.time()
   print("It took {:.1f} seconds".format(end_time - start_time))
+  print("Save results ->", out_folder)
   # endregion
 
 
