@@ -381,19 +381,19 @@ def plot_loss(
 
 
 def plot_mean_conf_interval(
-    ax, x, stat, color, label, alpha, sz=6, detail_label=False
+    ax, x, stat, color, label, alpha, sz=6, detail_label=False, lw=1.5
 ):
   label_mean = label + ', Mean'
   label_CI = label + ', 95% CI'
 
   if detail_label:
-    ax.plot(x, stat[0], '-o', c=color, label=label_mean, ms=sz)
+    ax.plot(x, stat[0], '-o', c=color, label=label_mean, ms=sz, lw=lw)
     ax.fill(
         np.concatenate([x, x[::-1]]), np.concatenate([stat[1], stat[2][::-1]]),
         alpha=alpha, fc=color, ec='None', label=label_CI
     )
   else:
-    ax.plot(x, stat[0], '-o', c=color, label=label, ms=sz)
+    ax.plot(x, stat[0], '-o', c=color, label=label, ms=sz, lw=lw)
     ax.fill(
         np.concatenate([x, x[::-1]]), np.concatenate([stat[1], stat[2][::-1]]),
         alpha=alpha, fc=color, ec='None'

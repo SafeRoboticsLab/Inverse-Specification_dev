@@ -536,6 +536,12 @@ def main(config_file: str, config_dict: dict) -> None:
   end_time = time.time()
   print("It took {:.1f} seconds".format(end_time - start_time))
   print("Save results ->", out_folder)
+  components = obj.opt.get('X')
+  features, oracle_scores, predicted_scores = problem.get_all(components)
+  print(components)
+  print(features)
+  print(oracle_scores)
+  print(predicted_scores)
   # endregion
 
 
@@ -543,7 +549,7 @@ if __name__ == "__main__":
   parser = argparse.ArgumentParser()
   parser.add_argument(
       "-cf", "--config_file", help="config file path", type=str,
-      default=os.path.join("config", "swri_guided_invspec.yaml")
+      default=os.path.join("config", "swri_guided_invspec_ucb.yaml")
   )
   args = parser.parse_args()
   config_dict = load_config(args.config_file)
