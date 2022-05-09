@@ -31,7 +31,7 @@ from humansim.ranker.pair_ranker import PairRankerSimulator
 # inverse specification module
 from funct_approx.config import NNConfig
 from invspec.inv_spec import InvSpec
-from invspec.querySelector.random_selector import RandomQuerySelector
+from invspec.query_selector.random_selector import RandomQuerySelector
 from invspec.inference.reward_NN import RewardNN
 
 # others
@@ -205,7 +205,7 @@ def main(config_file, config_dict):
           input_normalize=input_normalize,
           pop_extract_type=config_inv_spec.POP_EXTRACT_TYPE,
           beta=config_inv_spec.BETA, verbose=True
-      ), querySelector=RandomQuerySelector()
+      ), query_selector=RandomQuerySelector()
   )
   # endregion
 

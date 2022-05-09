@@ -1,0 +1,36 @@
+GENERAL:
+  SEED: 9
+  CHECK_GEN: 1
+  NAME: ucb/test10
+  NUM_WORKERS: 10
+
+GA:
+  POP_SIZE: 25
+  NUM_GEN: 11
+  INIT_OBJ_PATH: /Users/kaichieh/Desktop/SDCPS/src/scratch/swri/NSGA2/default10/objective_20
+
+INV_SPEC:
+  INFER_TYPE: gp
+  POP_EXTRACT_TYPE: F
+  BETA: 10.  # confidence coefficient
+  INPUT_NORMALIZE: true
+  MAX_QUERIES: 50
+  # region: init
+  MAX_ITER: 10  # that will be at most MAX_ITER * NUM_WORKERS / 2 queries
+  MAX_QUERIES_INIT: 15
+  # endregion
+  INTERACT_PERIOD: 2
+  MAX_QUERIES_PER: 5
+  QUERY_SELECTOR_TYPE: ucb
+  TRADEOFF: .1
+
+GP:
+  HORIZONTAL_LENGTH: 0.3  # ell in RBF kernel
+  VERTICAL_VARIATION: 1.0  # sigma_f in RBF kernel
+  NOISE_LEVEL: 0.1  # sigma_n in RBF kernel
+
+HUMAN:
+  BETA: 10
+  TYPE: plain
+  PERFECT_RANK: false
+  INDIFFERENCE: 0.01

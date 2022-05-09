@@ -23,12 +23,13 @@
 # self.W  # Hessian of negative log likelihood, - log p(feedback | GP_values)
 # self.fmode  # mode of p(GP_values | feedback, queries)
 
+from typing import Tuple, Union
 import numpy as np
 
 np.seterr(invalid='ignore')
-# import scipy
 from scipy import stats
-from scipy.optimize import minimize, Bounds
+from scipy.optimize import minimize, Bounds, OptimizeResult
+from pymoo.core.population import Population
 
 from invspec.inference.inference import Inference
 
@@ -77,7 +78,7 @@ class RewardGP(Inference):
         "unsupported mode!"
 
   #region: == Interface with GA ==
-  def _eval_query(self, input, **kwargs):
+  def _eval_query(self, input: np.ndarray, **kwargs) -> float:
     """Evaluates a query.
 
     Args:
@@ -88,14 +89,15 @@ class RewardGP(Inference):
     """
     return self.get_information_gain(input)
 
-  def _eval(self, input, **kwargs):
+  def _eval(self, input: np.ndarray, **kwargs) -> np.ndarray:
     """Evaluates design(s).
 
     Args:
         input (np.ndarray): matrix of inputs, of shape (#designs, self.dim).
 
     Returns:
-        float: inferred human utility (used as fitness function in GA).
+        np.ndarray: inferred human utility (used as the fitness function in
+            design exploration engine).
     """
     fitness = self.post_mean(input)
     return fitness
@@ -103,10 +105,10 @@ class RewardGP(Inference):
   #endregion
 
   #region: == UPDATING ==
-  def initialize(self):
+  def initialize(self) -> None:
     pass
 
-  def learn(self):
+  def learn(self) -> Tuple[OptimizeResult, list]:
     """Updates parameters, K, W and fmode after receiving several feedback.
 
     Returns:
@@ -118,6 +120,7 @@ class RewardGP(Inference):
     res, train_progress = self.get_mode()
     self.fmode = res.x
     self.W = self.get_W()
+    self.update_times += 1
 
     return res, train_progress
 
@@ -128,7 +131,7 @@ class RewardGP(Inference):
   #endregion
 
   #region: == GP ==
-  def get_information_gain(self, Xstar):
+  def get_information_gain(self, Xstar: np.ndarray) -> float:
     """
     Computes the information gain if we send this query to human. We want to
     maximize the information gain by considering the candidate pairs of designs
@@ -173,7 +176,29 @@ class RewardGP(Inference):
       else:
         return result1 - c_2
 
-  def kernel(self, xi, xj):
+  def get_ucb(
+      self, design: Union[Population, np.ndarray], tradeoff: float
+  ) -> np.ndarray:
+    """Computes the upper confidence bound given designs.
+
+    Args:
+        design (Union[Population, np.ndarray]): the set of designs that you
+            want to retrieve upper confidence bound.
+        tradeoff (float): the coefficient balances mean and variance
+
+    Returns:
+        np.ndarray: _description_
+    """
+    Xstar = self.design2input(design)
+    mean = self.post_mean(Xstar)
+    var = np.maximum(self.post_cov(Xstar).diagonal(), 0)
+    std = np.sqrt(var)
+    # with np.printoptions(formatter={'float': '{: 2.2f}'.format}):
+    #   print("mean:", mean)
+    #   print("weighted std", tradeoff * std)
+    return mean + tradeoff*std
+
+  def kernel(self, xi: np.ndarray, xj: np.ndarray) -> np.ndarray:
     """kernel function. Currently we only support RBF type kernel.
 
     Args:
@@ -215,7 +240,9 @@ class RewardGP(Inference):
           _covK[j, i] = _covK[i, j]
     return _covK
 
-  def get_mode(self, tol=1e-8, maxIter=10000, warmup=False):
+  def get_mode(
+      self, tol: float = 1e-8, max_iter: int = 10000, warmup: bool = False
+  ) -> Tuple[OptimizeResult, list]:
     """
     We use Laplace approximation to locally approximate the probability
     p(GP_values|queries, feedback). We use Taylor series expansion around the
@@ -223,14 +250,16 @@ class RewardGP(Inference):
 
     Args:
         tol (float, optional): tolerance for termination. Defaults to 1e-8.
-        maxIter (int, optional): maximum #iterations. Defaults to 10000.
+        max_iter (int, optional): maximum #iterations. Defaults to 10000.
 
     Returns:
         scipy OptimizeResult.
         list: training progress (objective values).
     """
 
-    def obj(GP_values, feedbacks, Kinv):
+    def obj(
+        GP_values: np.ndarray, feedbacks: np.ndarray, Kinv: np.ndarray
+    ) -> np.ndarray:
       num_queries = int(len(GP_values) / 2)
       delta_rwd = GP_values[:num_queries] - GP_values[num_queries:]
       ys, _ = self.get_rv(delta_rwd, feedbacks, self.confidence_coeff)
@@ -241,7 +270,9 @@ class RewardGP(Inference):
       log_prior = -0.5 * np.matmul(GP_values, np.matmul(Kinv, f_tmp))
       return (-log_likelihood - log_prior) / num_queries
 
-    def jac(GP_values, feedbacks, Kinv):
+    def jac(
+        GP_values: np.ndarray, feedbacks: np.ndarray, Kinv: np.ndarray
+    ) -> np.ndarray:
       num_queries = int(len(GP_values) / 2)
       _jac = np.zeros(2 * num_queries)
       for i in range(num_queries):
@@ -255,7 +286,7 @@ class RewardGP(Inference):
 
     train_progress = []
 
-    def callback(x):
+    def callback(x: np.ndarray) -> None:
       train_progress.append(obj(x, feedbacks, Kinv))
 
     num_queries = len(self.memory)
@@ -269,7 +300,7 @@ class RewardGP(Inference):
       x0[:half_length] = self.fmode[:half_length]
       x0[num_queries:num_queries + half_length] = self.fmode[half_length:]
     options = {}
-    options['maxiter'] = maxIter
+    options['maxiter'] = max_iter
     options['disp'] = False
     bounds = Bounds(np.zeros(2 * num_queries), np.ones(2 * num_queries))
     res = minimize(
@@ -278,7 +309,7 @@ class RewardGP(Inference):
     )
     return res, train_progress
 
-  def get_W(self):
+  def get_W(self) -> np.ndarray:
     """
     Gets the hessian of negative log likelihood, -log p(feedback | GP_values).
 
@@ -300,7 +331,7 @@ class RewardGP(Inference):
       _W[i + num_queries, i + num_queries] = -h
     return _W
 
-  def kstar(self, Xstar):
+  def kstar(self, Xstar: np.ndarray) -> np.ndarray:
     """
     Gets matrix of the covariances evaluated at all pairs of training, X, and
     test points, (xi, xj).
@@ -322,7 +353,7 @@ class RewardGP(Inference):
         _kstar[n, m] = self.kernel(Xstar[m, :], xn)
     return _kstar
 
-  def kstarstar(self, Xstar):
+  def kstarstar(self, Xstar: np.ndarray) -> np.ndarray:
     """
     Gets matrix of the covariances evaluated at all pairs of test points,
     (xi, xj).
@@ -345,7 +376,7 @@ class RewardGP(Inference):
           _kstarstar[j, i] = _kstarstar[i, j]
     return _kstarstar
 
-  def post_mean(self, Xstar):
+  def post_mean(self, Xstar: np.ndarray) -> np.ndarray:
     """Gets the posterior mean ~= K_*.T x K^-1 x fmode.
 
     Args:
@@ -354,15 +385,13 @@ class RewardGP(Inference):
     Returns:
         np.ndarray: float, posterior mean.
     """
-    if not isinstance(Xstar, np.ndarray):
-      Xstar = np.array(Xstar)
     if Xstar.ndim == 1:
       Xstar = Xstar.reshape(1, -1)
     _kstar = self.kstar(Xstar)
     a = np.matmul(self.Kinv, self.fmode)
     return np.matmul(_kstar.T, a)
 
-  def post_cov(self, Xstar):
+  def post_cov(self, Xstar: np.ndarray) -> np.ndarray:
     """Gets the posterior variance ~= K_** - K_*.T x (K+W^-1)^-1 x K_*.
 
     Args:
@@ -371,8 +400,6 @@ class RewardGP(Inference):
     Returns:
         np.ndarray: float, posterior variance.
     """
-    if not isinstance(Xstar, np.ndarray):
-      Xstar = np.array(Xstar)
     if Xstar.ndim == 1:
       Xstar = Xstar.reshape(1, -1)
     _kstar = self.kstar(Xstar)
@@ -384,7 +411,7 @@ class RewardGP(Inference):
     mtx_inv = np.linalg.inv(tmp)
     return _kstarstar - np.matmul(_kstar.T, np.matmul(mtx_inv, _kstar))
 
-  def post_mean1pt(self, x):
+  def post_mean1pt(self, x: np.ndarray) -> np.ndarray:
     """Gets the posterior mean of a single point.
 
     Args:
@@ -395,7 +422,7 @@ class RewardGP(Inference):
     """
     return self.post_mean(x)[0]
 
-  def post_cov1pt(self, x):
+  def post_cov1pt(self, x: np.ndarray) -> np.ndarray:
     """Gets the posterior variance of a single point.
 
     Args:
@@ -410,7 +437,7 @@ class RewardGP(Inference):
 
   #region: == utils ==
   @staticmethod
-  def squeeze_concatenate(q_1s, q_2s):
+  def squeeze_concatenate(q_1s: np.ndarray, q_2s: np.ndarray) -> np.ndarray:
     """
     Since we might want to extend to infer human preference from a trajectory,
     the design has an extra axis. We need to squeeze matrices of queries. Then,
@@ -431,7 +458,10 @@ class RewardGP(Inference):
 
     return np.concatenate((q_1s, q_2s), axis=0)
 
-  def get_rv(self, delta_rwd, feedback, confidence_coeff):
+  def get_rv(
+      self, delta_rwd: Union[np.ndarray, float],
+      feedback: Union[np.ndarray, float], confidence_coeff: float
+  ) -> Tuple[Union[np.ndarray, float], float]:
     """
     We provide two likelihood models:
         (1) the cumulative density function of a standard normal distribution.
@@ -455,7 +485,7 @@ class RewardGP(Inference):
       kappa = feedback / (np.sqrt(2) * confidence_coeff)
     return kappa * delta_rwd, kappa
 
-  def response(self, y):
+  def response(self, y: Union[np.ndarray, float]) -> Union[np.ndarray, float]:
     """
     Squashes its argument into the range [0, 1]. We provide two options.
         (1) the cumulative density function of a standard normal distribution.
@@ -476,7 +506,8 @@ class RewardGP(Inference):
     else:
       return stats.norm.cdf(y)
 
-  def dot_response(self, y):
+  def dot_response(self, y: Union[np.ndarray,
+                                  float]) -> Union[np.ndarray, float]:
     """The first derivative of the response function.
 
     Args:
@@ -491,7 +522,8 @@ class RewardGP(Inference):
     else:
       return stats.norm.pdf(y)
 
-  def ddot_response(self, y):
+  def ddot_response(self, y: Union[np.ndarray,
+                                   float]) -> Union[np.ndarray, float]:
     """The second derivative of the response function.
 
     Args:
@@ -508,7 +540,7 @@ class RewardGP(Inference):
       return (-y) * stats.norm.pdf(y)
 
   @staticmethod
-  def bin_ent(p):
+  def bin_ent(p: float) -> float:
     """Binary entropy function.
 
     Args:

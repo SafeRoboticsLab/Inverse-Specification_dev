@@ -1,7 +1,7 @@
 GENERAL:
   SEED: 0
   CHECK_GEN: 1
-  NAME: test
+  NAME: more_queries
   PROBLEM_TYPE: p2
   USE_TIMESTR: false
 
@@ -14,7 +14,7 @@ INV_SPEC:
   QUERY_SELECTOR_TYPE: ig  # ig or rand
   INTERACT_PERIOD: 25
   MAX_QUERIES_PER: 3
-  MAX_QUERIES: 20
+  MAX_QUERIES: 50
   INFER_TYPE: gp
   POP_EXTRACT_TYPE: F
   BETA: 10.  # confidence coefficient

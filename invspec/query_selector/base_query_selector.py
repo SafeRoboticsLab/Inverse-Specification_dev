@@ -2,19 +2,25 @@
 # Authors: Kai-Chieh Hsu ( kaichieh@princeton.edu )
 
 from abc import ABC, abstractmethod
+from typing import Union
+import numpy as np
+from pymoo.core.population import Population
 
 
 class QuerySelector(ABC):
 
-  def __init__(self):
+  def __init__(self) -> None:
     """
     This class is used to select queries to send to the human designer.
     Several strategies can be used.
     """
     super().__init__()
-    self.queryTimes = 0  # number of query times (different to #queries)
+    self.num_query_times = 0  # number of query times (different to #queries)
 
-  def do(self, pop, n_queries, n_designs=2, **kwargs):
+  def do(
+      self, pop: Union[Population, np.ndarray], n_queries: int, n_designs: int,
+      **kwargs
+  ) -> np.ndarray:
     """Choose from the population new individuals to be selected.
 
     Args:
@@ -35,10 +41,13 @@ class QuerySelector(ABC):
     else:
       n_queries_obtained = n_queries
     I = self._do(pop, n_queries_obtained, n_designs, **kwargs)
-    self.queryTimes += 1
+    self.num_query_times += 1
 
     return I
 
   @abstractmethod
-  def _do(self, pop, n_queries, n_designs, **kwargs):
+  def _do(
+      self, pop: Union[Population, np.ndarray], n_queries: int, n_designs: int,
+      **kwargs
+  ) -> np.ndarray:
     raise NotImplementedError

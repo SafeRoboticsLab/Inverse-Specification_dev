@@ -5,6 +5,7 @@
 .vscode/
 swri/template/*
 dataset/*
+.ipynb_checkpoints/*
 
 # 
 *.out
@@ -12,3 +13,4 @@ swri/flight-dynamics-model/
 swri/new_fdm
 tmp.py
 *.code-workspace
+*.ipynb

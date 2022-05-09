@@ -1,0 +1,25 @@
+GENERAL:
+  SEED: 5
+  NAME: agent_buffer_40q/6
+  NUM_WORKERS: 10
+
+INV_SPEC:
+  INFER_TYPE: gp
+  POP_EXTRACT_TYPE: F
+  BETA: 10.  # confidence coefficient
+  INPUT_NORMALIZE: true
+  NUM_REQUIRED_QUERY: 3
+  MAX_ITER: 2000
+  REQUIRED_FB: 200
+  MAX_ASK: 40
+
+GP:
+  HORIZONTAL_LENGTH: 0.3  # ell in RBF kernel
+  VERTICAL_VARIATION: 1.0  # sigma_f in RBF kernel
+  NOISE_LEVEL: 0.1  # sigma_n in RBF kernel
+
+HUMAN:
+  BETA: 10
+  TYPE: plain
+  PERFECT_RANK: false
+  INDIFFERENCE: 0.01

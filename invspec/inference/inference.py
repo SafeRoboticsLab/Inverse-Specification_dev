@@ -2,6 +2,7 @@
 # Authors: Kai-Chieh Hsu ( kaichieh@princeton.edu )
 
 from abc import ABC, abstractmethod
+from typing import Any, Optional, Tuple, Union
 import warnings
 import numpy as np
 from collections import namedtuple
@@ -15,11 +16,14 @@ Feedback = namedtuple('Feedback', ['q_1', 'q_2', 'f'])
 class Inference(ABC):
 
   def __init__(
-      self, state_dim, action_dim, CONFIG, input_min=None, input_max=None,
-      input_normalize=True, pop_extract_type='F'
-  ):
+      self, state_dim: int, action_dim: int, CONFIG: Any,
+      input_min: Optional[np.ndarray] = None,
+      input_max: Optional[np.ndarray] = None, input_normalize: bool = True,
+      pop_extract_type: str = 'F'
+  ) -> None:
 
     super().__init__()
+    self.update_times = 0
     #= ENV
     self.state_dim = state_dim
     self.action_dim = action_dim
@@ -32,9 +36,8 @@ class Inference(ABC):
     self.memory = ReplayMemory(CONFIG.MEMORY_CAPACITY, CONFIG.SEED)
 
   #region: == Interface with GA ==
-  def design2input(self, designs):
+  def design2input(self, designs: Union[Population, np.ndarray]) -> np.ndarray:
     if isinstance(designs, Population):
-      # currently only interact with objectives:
       if self.pop_extract_type == 'F':
         # add '-' because we want to maximize, but GA wants to minimize
         ind = -1.
@@ -46,21 +49,20 @@ class Inference(ABC):
                 self.pop_extract_type
             )
         )
-
-      if self.input_normalize:  # normalize by a priori input_min and input_max
-        input = self.normalize(ind * designs.get(self.pop_extract_type))
-      else:
-        input = ind * designs.get(self.pop_extract_type)
+      input = ind * designs.get(self.pop_extract_type)
     elif isinstance(designs, np.ndarray):
       input = designs
     else:
       raise ValueError(
           "Designs must be either pymoo:Population or numpy:array!"
       )
+    if self.input_normalize:  # normalize by a priori input_min and input_max
+      input = self.normalize(input)
 
     return input.astype('float32')
 
-  def eval(self, pop, **kwargs):
+  def eval(self, pop: Union[Population, np.ndarray],
+           **kwargs) -> Union[Population, np.ndarray]:
     """
     A wrapper for fitness evaluation. If the designs are presented in the
     format of Pymoo:population, we extract the obejectives and normalize if
@@ -83,7 +85,7 @@ class Inference(ABC):
       return fitness
 
   @abstractmethod
-  def _eval(self, input, **kwargs):
+  def _eval(self, input: np.ndarray, **kwargs) -> np.ndarray:
     """
     Evaluates the fitness according to the (normalized) obejective
     measurements. The child class must implement this function.
@@ -94,20 +96,22 @@ class Inference(ABC):
     """
     raise NotImplementedError
 
-  def eval_query(self, query, **kwargs):
+  def eval_query(
+      self, query: Union[Population, np.ndarray], **kwargs
+  ) -> float:
     """
     Evaluates the query. For example, the evaluation can base on information
     gain or value of information
 
     Args:
-        query: a pair of designs, of shape (2,)
+        query: a pair of designs.
     """
     input = self.design2input(query)
     metric = self._eval_query(input, **kwargs)
     return metric
 
   @abstractmethod
-  def _eval_query(self, input, **kwargs):
+  def _eval_query(self, input: np.ndarray, **kwargs) -> float:
     """
     Evaluate the quality of the query. The child class must implement this
     function.
@@ -121,26 +125,26 @@ class Inference(ABC):
 
   #region: == LEARN ==
   @abstractmethod
-  def learn(self):
+  def learn(self) -> None:
     raise NotImplementedError
 
   @abstractmethod
-  def initialize(self):
+  def initialize(self) -> None:
     raise NotImplementedError
 
   #endregion
 
   #region: == MEMORY ==
-  def store_feedback(self, *args):
+  def store_feedback(self, *args) -> None:
     self.memory.update(Feedback(*args))
 
-  def clear_feedback(self):
+  def clear_feedback(self) -> None:
     self.memory.reset()
 
   #endregion
 
   #region: == Utils ==
-  def normalize(self, input):
+  def normalize(self, input: np.ndarray) -> np.ndarray:
     if (self.input_min is None or self.input_max is None):
       warnings.warn("Need to provide input bounds if using normalize")
       return input
@@ -148,20 +152,25 @@ class Inference(ABC):
       input_spacing = self.input_max - self.input_min
       return (input - self.input_min) / input_spacing
 
-  def get_all_query_feedback(self):
+  def get_all_query_feedback(
+      self
+  ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     feedbacks = self.memory.memory
     batch = Feedback(*zip(*feedbacks))
 
     return self.extract_batch(batch)
 
-  def get_sampled_query_feedback(self, size):
+  def get_sampled_query_feedback(
+      self, size: int
+  ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     feedbacks = self.memory.sample(size)
     batch = Feedback(*zip(*feedbacks))
 
     return self.extract_batch(batch)
 
   @classmethod
-  def extract_batch(cls, batch):
+  def extract_batch(cls,
+                    batch: Any) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Extracts batch of Feedback into two trajectories arrays and a feedback
     array.
@@ -180,13 +189,13 @@ class Inference(ABC):
     return trajectories_1, trajectories_2, np.array(batch.f)
 
   @staticmethod
-  def trans_state_action_tuple2numpy(qs):
+  def trans_state_action_tuple2numpy(qs: Tuple[Tuple, ...]) -> np.ndarray:
     """
     Transforms a sequence of (state, action) pairs into a numpy array of shape
     (batch_size, length, state_dim+action_dim).
 
     Args:
-        qs (tuple): tuple of (state, action) tuples.
+        qs (Tuple): tuple of (state, action) tuples.
 
     Returns:
         np.ndarray: of shape (batch_size, length, state_dim+action_dim).

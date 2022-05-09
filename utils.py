@@ -381,19 +381,19 @@ def plot_loss(
 
 
 def plot_mean_conf_interval(
-    ax, x, stat, color, label, alpha, sz=6, detail_label=False
+    ax, x, stat, color, label, alpha, sz=6, detail_label=False, lw=1.5
 ):
   label_mean = label + ', Mean'
   label_CI = label + ', 95% CI'
 
   if detail_label:
-    ax.plot(x, stat[0], '-o', c=color, label=label_mean, ms=sz)
+    ax.plot(x, stat[0], '-o', c=color, label=label_mean, ms=sz, lw=lw)
     ax.fill(
         np.concatenate([x, x[::-1]]), np.concatenate([stat[1], stat[2][::-1]]),
         alpha=alpha, fc=color, ec='None', label=label_CI
     )
   else:
-    ax.plot(x, stat[0], '-o', c=color, label=label, ms=sz)
+    ax.plot(x, stat[0], '-o', c=color, label=label, ms=sz, lw=lw)
     ax.fill(
         np.concatenate([x, x[::-1]]), np.concatenate([stat[1], stat[2][::-1]]),
         alpha=alpha, fc=color, ec='None'
@@ -697,7 +697,7 @@ def plot_output_2D(
 # endregion
 
 
-#== pickle ==
+# region: pickle
 def save_obj(obj, filename):
   with open(filename + '.pkl', 'wb') as f:
     pickle.dump(obj, f, pickle.HIGHEST_PROTOCOL)
@@ -706,3 +706,61 @@ def save_obj(obj, filename):
 def load_obj(filename):
   with open(filename + '.pkl', 'rb') as f:
     return pickle.load(f)
+
+
+# endregion
+
+
+# region: random sampling and pymoo evaluate
+def sample_and_evaluate(problem, component_values_bound, num_samples=8):
+  components = unnormalize(
+      np.random.rand(num_samples, problem.n_var), component_values_bound[:, 0],
+      component_values_bound[:, 1]
+  )
+
+  # get features
+  y = {}
+  problem._evaluate(components, y)
+  return components, y
+
+
+# endregion
+
+
+# region: interaction with human
+def query_and_collect(
+    query_features, query_components, human, agent, config_inv_spec,
+    collect_undistinguished=False
+):
+  query = dict(F=query_features, X=query_components)
+  # get feedback
+  fb_raw = human.get_ranking(query)
+
+  # store feedback
+  if config_inv_spec.POP_EXTRACT_TYPE == 'F':
+    inputs_to_invspec = query_features
+  else:
+    inputs_to_invspec = query_components
+
+  if config_inv_spec.INPUT_NORMALIZE:
+    inputs_to_invspec = agent.inference.normalize(inputs_to_invspec)
+  q_1 = (inputs_to_invspec[0:1, :], np.array([]).reshape(1, 0))
+  q_2 = (inputs_to_invspec[1:2, :], np.array([]).reshape(1, 0))
+
+  if fb_raw != 2:
+    if fb_raw == 0:
+      fb_invspec = 1
+    elif fb_raw == 1:
+      fb_invspec = -1
+    agent.store_feedback(q_1, q_2, fb_invspec)
+    return fb_invspec, inputs_to_invspec
+  elif collect_undistinguished:
+    eps = np.random.uniform()
+    fb_invspec = 1 if eps > 0.5 else -1
+    agent.store_feedback(q_1, q_2, fb_invspec)
+    return fb_invspec, inputs_to_invspec
+  else:
+    return None, None
+
+
+# endregion

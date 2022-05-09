@@ -3,14 +3,15 @@ import time
 import numpy as np
 from swri.flight_dynamics import SWRIFlightDynamics, SWRIFlightDynamicsParallel
 from swri.problem import SWRIElementwiseProblem, SWRIProblem
+from utils import sample_and_evaluate, set_seed, load_obj
 
 # template_file: the path to the architecture of the aircraft
 # exec_file: the path to the flight dynamics model
 TEMPLATE_FILE = os.path.join('swri', 'template', 'FlightDyn_quadH.inp')
 EXEC_FILE = os.path.join('swri', "new_fdm")
 speed_list = (np.arange(10) + 1) * 5
-test_simulator = True
-test_problem_wrapper = True
+test_simulator = False
+test_problem_wrapper = False
 
 # test simulator
 if test_simulator:
@@ -109,3 +110,43 @@ if test_problem_wrapper:
       X[2:3], out_tmp, get_score=False, delete_folder=False
   )
   print(out_tmp["F"])
+
+if True:
+  # components = np.empty(shape=(1, 6))
+  # components[:, 0] = 2.9770078903855186
+  # components[:, 1] = 1.0989342203446966
+  # components[:, 2] = 4.624323902301885
+  # components[:, 3] = 0.1413715754799179
+  # components[:, 4] = 1.9449217011707376
+  # components[:, 5] = 27.026272821516898
+  # components[:, 0] = 1.
+  # components[:, 1] = 1.
+  # components[:, 2] = 1.
+  # components[:, 3] = 1.
+  # components[:, 4] = 1.
+  # components[:, 5] = 10.
+  set_seed(seed_val=0, use_torch=False)
+
+  init_obj_pop = load_obj("scratch/swri/NSGA2/default10/objective_20")
+  features = -init_obj_pop.get('F')  # we want to maximize
+  components = np.array(init_obj_pop.get('X'), dtype=float)
+  print("We have {} designs".format(len(components)))
+
+  problem = SWRIProblem(TEMPLATE_FILE, EXEC_FILE, 5)
+  # component_values_bound = np.concatenate(
+  #     (problem.xl[:, np.newaxis], problem.xu[:, np.newaxis]), axis=1
+  # )
+  # components, y = sample_and_evaluate(problem, component_values_bound, 50)
+
+  y = {}
+  problem._evaluate(components, y)
+
+  with np.printoptions(formatter={'float': '{: .2f}'.format}):
+    print("components:")
+    print(components)
+
+    print("\nscores:")
+    print(y["scores"])
+
+    print("\nfeatures:")
+    print(y["F"])
