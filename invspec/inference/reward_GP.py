@@ -52,13 +52,14 @@ def logistic(x, coeff):
 class RewardGP(Inference):
 
   def __init__(
-      self, state_dim, action_dim, CONFIG, initial_point, input_min=None,
-      input_max=None, input_normalize=True, verbose=False
+      self, state_dim, action_dim, CONFIG, key: str, initial_point,
+      input_min=None, input_max=None, input_normalize=True, verbose=False
   ):
     assert state_dim+action_dim == len(initial_point), \
         "fature size doesn't match"
     super().__init__(
-        state_dim, action_dim, CONFIG, input_min, input_max, input_normalize
+        state_dim, action_dim, CONFIG, key, input_min, input_max,
+        input_normalize
     )
     self.dim = len(initial_point)  # number of features
 

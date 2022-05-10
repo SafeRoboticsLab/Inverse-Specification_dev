@@ -20,6 +20,7 @@ class Inference(ABC):
       input_min: Optional[np.ndarray] = None,
       input_max: Optional[np.ndarray] = None, input_normalize: bool = True
   ) -> None:
+    assert isinstance(key, str), "Key should be a string!"
 
     super().__init__()
     self.update_times = 0

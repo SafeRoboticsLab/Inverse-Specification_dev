@@ -17,12 +17,14 @@ from invspec.inference.inference import Inference
 class RewardNN(Inference):
 
   def __init__(
-      self, state_dim, action_dim, CONFIG, input_min=None, input_max=None,
-      input_normalize=True, beta=10, verbose=False, bounded_output=True
+      self, state_dim, action_dim, CONFIG, key: str, input_min=None,
+      input_max=None, input_normalize=True, beta=10, verbose=False,
+      bounded_output=True
   ):
 
     super().__init__(
-        state_dim, action_dim, CONFIG, input_min, input_max, input_normalize
+        state_dim, action_dim, CONFIG, key, input_min, input_max,
+        input_normalize
     )
 
     #== PARAM ==
