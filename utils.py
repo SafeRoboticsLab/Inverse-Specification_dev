@@ -1,6 +1,7 @@
 # Please contact the author(s) of this library if you have any questions.
 # Authors: Kai-Chieh Hsu ( kaichieh@princeton.edu )
 
+from typing import List, Tuple, Any, Optional
 import numpy as np
 import random
 import matplotlib.pyplot as plt
@@ -9,6 +10,11 @@ from matplotlib import cm
 import os
 import imageio
 import pickle
+from pymoo.core.problem import Problem
+
+from humansim.human_simulator import HumanSimulator
+from invspec.design import Design
+from invspec.inv_spec import InvSpec
 
 
 # region: DATA PROCESSING
@@ -75,138 +81,6 @@ def entropy(prob):
       entropy (float): entropy of the distribution.
   """
   return -np.sum(prob * np.log(prob))
-
-
-# endregion
-
-
-# region: INIT / RESET
-def init_experiment(num_weight=50, dim=3, use_one_norm=False, shrink=.95):
-  """
-  Samples weights from 2-norm or 1-norm ball. Generates designs given the
-  weights.
-
-  Args:
-      num_weight (int, optional):  the number of weights. Defaults to 50.
-      dim (int, optional):        the dimension of a weight. Defaults to 3.
-      use_one_norm (bool, optional): project weights to 1-norm ball. Defaults
-          to False.
-      shrink (float, optional):   the ratio to shrink designs' features except
-          the optimal design with respect to the optimal weight. Defaults to
-          0.95.
-
-  Returns:
-      weight_array (float array):      array of weights.
-      w_opt (float array):            optimal weight.
-      idx_opt (int):                  index of the optimal weight.
-      design_feature (float array):    array of designs' features
-  """
-  #= Weight Space
-  weight_array, idx_opt = set_weight_space(
-      num_weight=num_weight, dim=dim, use_one_norm=use_one_norm
-  )
-  #= Design Space
-  # num_design = weight_array.shape[0]
-  design_feature = set_design_space(weight_array, idx_opt, shrink=shrink)
-
-  if use_one_norm:  # project to ||w||_1 = 1
-    L1Norm = np.linalg.norm(weight_array, axis=1, ord=1).reshape(-1, 1)
-    weight_array /= L1Norm
-    #design_feature *= L1Norm
-  w_opt = weight_array[idx_opt].copy()
-
-  return weight_array, w_opt, idx_opt, design_feature
-
-
-def set_weight_space(num_weight=50, dim=3, use_one_norm=False):
-  """
-  Samples weights from 2-norm or 1-norm ball.
-
-  Args:
-      num_weight (int, optional): the number of weights. Defaults to 50.
-      dim (int, optional): the dimension of a weight. Defaults to 3.
-      use_one_norm (bool, optional): project weights to 1-norm ball. Defaults
-          to False.
-
-  Returns:
-      weight_array (float array): array of weights.
-      w_opt (float array): optimal weight.
-      idx_opt (int): index of the optimal weight.
-  """
-  # ref: https://www.sciencedirect.com/science/article/pii/S0047259X10001211
-
-  weight_array = np.random.normal(size=(num_weight, dim))
-  weight_array = np.abs(weight_array)
-  weight_array /= np.linalg.norm(weight_array, axis=1, ord=2).reshape(-1, 1)
-  # print(
-  #     "The shape of the weight array is {:d} x {:d}.".format(
-  #         weight_array.shape[0], weight_array.shape[1]
-  #     )
-  # )
-
-  idx_opt = np.random.choice(num_weight)
-
-  return weight_array, idx_opt
-
-
-def set_design_space(weight_array, idx_opt, shrink=0.95):
-  """
-  Generates designs given the weights.
-
-  Args:
-      weight_array (float array): array of weights.
-      idx_opt (int): index of the optimal weight.
-      shrink (float, optional): the ratio to shrink designs' features except
-          the optimal design with respect to the optimal weight. Defaults to
-          0.95.
-
-  Returns:
-      design_feature (float array): array of designs' features
-  """
-  num_weight = weight_array.shape[0]
-  design_feature = weight_array.copy()
-  design_feature[np.arange(num_weight) != idx_opt, :] *= shrink
-
-  return design_feature
-
-
-def get_infeasible_designs(design_feature, active_constraint_set):
-  """
-  Finds designs that don't meet the active constraints. The constraint is
-  expressed as 1{feature < threshold}. If this bool expression is True, this
-  design is infeasible.
-
-  Args:
-      design_feature (float array): designs' features.
-      active_constraint_set (int array): active constraints. 1st col.: feature
-          index; 2nd col.: threshold.
-
-  Returns:
-      np.ndarray: bool, indicates which design is infeasible.
-  """
-
-  num_design = design_feature.shape[0]
-  infeasible_indicator = np.full(shape=(num_design,), fill_value=False)
-  if active_constraint_set is not None:
-    for i in range(num_design):
-      flag = False
-      for (feature_idx, threshold) in active_constraint_set:
-        thr_as_upper_bound = False
-        if feature_idx[0] == '-':
-          feature_idx = int(feature_idx[1:])
-          thr_as_upper_bound = True
-        feature_idx = int(feature_idx)
-        if thr_as_upper_bound:
-          if design_feature[i, feature_idx] > threshold:
-            flag = True
-            break
-        else:
-          if design_feature[i, feature_idx] < threshold:
-            flag = True
-            break
-      infeasible_indicator[i] = flag
-
-  return infeasible_indicator
 
 
 # endregion
@@ -712,7 +586,9 @@ def load_obj(filename):
 
 
 # region: random sampling and pymoo evaluate
-def sample_and_evaluate(problem, component_values_bound, num_samples=8):
+def sample_and_evaluate(
+    problem: Problem, component_values_bound: np.ndarray, num_samples: int = 8
+):
   components = unnormalize(
       np.random.rand(num_samples, problem.n_var), component_values_bound[:, 0],
       component_values_bound[:, 1]
@@ -728,24 +604,65 @@ def sample_and_evaluate(problem, component_values_bound, num_samples=8):
 
 
 # region: interaction with human
+def get_infeasible_designs(
+    fwd_features: np.ndarray,
+    active_constraint_set: Optional[List[Tuple[str, float]]]
+) -> np.ndarray:
+  """
+  Finds designs that don't meet the active constraints. The constraint is
+  expressed as 1{feature < threshold}. If this bool expression is True, this
+  design is infeasible.
+
+  Args:
+      fwd_features (float array): designs' features.
+      active_constraint_set (list): active constraints. Each entry is a tuple
+          of (feature_idx, threshold). Note that if the feature index starts
+          with "-", this means this constraint is an upper bound.
+
+  Returns:
+      np.ndarray: bool, indicates which design is infeasible.
+  """
+
+  num_design = fwd_features.shape[0]
+  infeasible_indicator = np.full(shape=(num_design,), fill_value=False)
+  if active_constraint_set is not None:
+    for i in range(num_design):
+      flag = False
+      for (feature_idx, threshold) in active_constraint_set:
+        thr_as_upper_bound = False
+        if feature_idx[0] == '-':
+          feature_idx = int(feature_idx[1:])
+          thr_as_upper_bound = True
+        feature_idx = int(feature_idx)
+        if thr_as_upper_bound:
+          if fwd_features[i, feature_idx] > threshold:
+            flag = True
+            break
+        else:
+          if fwd_features[i, feature_idx] < threshold:
+            flag = True
+            break
+      infeasible_indicator[i] = flag
+
+  return infeasible_indicator
+
+
 def query_and_collect(
-    query_features, query_components, human, agent, config_inv_spec,
-    collect_undistinguished=False
-):
-  query = dict(F=query_features, X=query_components)
+    query: List[Design], query_key: int, human: HumanSimulator, agent: InvSpec,
+    config_inv_spec: Any, collect_undistinguished: Optional[bool] = False
+) -> Tuple[Optional[int], Optional[np.ndarray]]:
   # get feedback
-  fb_raw = human.get_ranking(query)
+  fb_raw = human.get_ranking(query, key=query_key)
 
   # store feedback
-  if config_inv_spec.POP_EXTRACT_TYPE == 'F':
-    inputs_to_invspec = query_features
-  else:
-    inputs_to_invspec = query_components
+  inputs_to_invspec = np.array([
+      design.get_test_metrics(query_key) for design in query
+  ], dtype=np.float32)
 
   if config_inv_spec.INPUT_NORMALIZE:
     inputs_to_invspec = agent.inference.normalize(inputs_to_invspec)
-  q_1 = (inputs_to_invspec[0:1, :], np.array([]).reshape(1, 0))
-  q_2 = (inputs_to_invspec[1:2, :], np.array([]).reshape(1, 0))
+  q_1 = (inputs_to_invspec[0:1, :], np.empty(shape=(1, 0)))
+  q_2 = (inputs_to_invspec[1:2, :], np.empty(shape=(1, 0)))
 
   if fb_raw != 2:
     if fb_raw == 0:

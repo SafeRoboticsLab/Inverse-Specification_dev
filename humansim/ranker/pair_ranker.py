@@ -2,17 +2,20 @@
 # Authors: Kai-Chieh Hsu ( kaichieh@princeton.edu )
 
 from abc import abstractmethod
+from typing import List, Tuple, Optional, Any
 import numpy as np
 
 from humansim.ranker.ranker import Ranker
 from utils import get_infeasible_designs
+from invspec.design import Design, design2metrics, design2params
 
 
 class PairRanker(Ranker):
 
   def __init__(
-      self, beta=5., active_constraint_set=None, perfect_rank=False,
-      indifference=0.1
+      self, beta: float = 5.,
+      active_constraint_set: Optional[List[Tuple[str, float]]] = None,
+      perfect_rank: bool = False, indifference: float = 0.1
   ):
 
     super().__init__()
@@ -22,25 +25,21 @@ class PairRanker(Ranker):
     self.perfect_rank = perfect_rank
     self.indifference = indifference
 
-  def _get_ranking(self, query, **kwargs):
+  def _get_ranking(self, query: List[Design], **kwargs) -> int:
     """Gets the preference of designs or returns "cannot distinguish".
 
     Args:
-        query (dict):
-            'F' (np.ndarray, (#designs x #features)): designs represented by
-                their features (objectives defined in `problem`).
-            'X' (np.ndarray, (#designs x #components)): designs represented by
-                their component values (inputs defined in `problem`).
+        query (List[Design]): the length should be 2.
 
     Returns:
         int: feedback, 0: first, 1: second, 2: cannot distinguish.
     """
-    n_designs, _ = query['F'].shape
+    n_designs = len(query)
     assert n_designs == 2, "This ranker only supports binary preference!"
 
     if self.consider_constarint:
       indicator = get_infeasible_designs(
-          query['F'], self.active_constraint_set
+          design2metrics(query, key=kwargs['key']), self.active_constraint_set
       )
       feasible_index = np.arange(n_designs)[np.logical_not(indicator)]
     else:
@@ -66,15 +65,18 @@ class PairRanker(Ranker):
     return feedback
 
   @abstractmethod
-  def _get_scores(self, query, feasible_index, **kwargs):
+  def _get_scores(
+      self, query: List[Design], feasible_index: np.ndarray, **kwargs
+  ):
     raise NotImplementedError
 
 
 class PairRankerWeights(PairRanker):
 
   def __init__(
-      self, w_opt, beta=5., active_constraint_set=None, perfect_rank=False,
-      indifference=0.1
+      self, w_opt: np.ndarray, beta: float = 5.,
+      active_constraint_set: Optional[List[Tuple[str, float]]] = None,
+      perfect_rank: bool = False, indifference: float = 0.1
   ):
     super().__init__(
         beta=beta, active_constraint_set=active_constraint_set,
@@ -82,8 +84,10 @@ class PairRankerWeights(PairRanker):
     )
     self.w_opt = w_opt
 
-  def _get_scores(self, query, feasible_index, **kwargs):
-    designs = query['F'][feasible_index, :]
+  def _get_scores(
+      self, query: List[Design], feasible_index: np.ndarray, **kwargs
+  ):
+    designs = design2metrics(query, key=kwargs['key'])[feasible_index, :]
     assert designs.shape[1] == self.w_opt.shape[0], (
         "#features ({}) doesn't match #weights ({}).".format(
             designs.shape[1], self.w_opt.shape[0]
@@ -95,8 +99,9 @@ class PairRankerWeights(PairRanker):
 class PairRankerSimulator(PairRanker):
 
   def __init__(
-      self, simulator, beta=5., active_constraint_set=None, perfect_rank=False,
-      indifference=0.1
+      self, simulator: Any, beta: float = 5.,
+      active_constraint_set: Optional[List[Tuple[str, float]]] = None,
+      perfect_rank: bool = False, indifference: float = 0.1
   ):
     super().__init__(
         beta=beta, active_constraint_set=active_constraint_set,
@@ -104,8 +109,10 @@ class PairRankerSimulator(PairRanker):
     )
     self.sim = simulator
 
-  def _get_scores(self, query, feasible_index, **kwargs):
-    designs = query['X'][feasible_index, :]
+  def _get_scores(
+      self, query: List[Design], feasible_index: np.ndarray, **kwargs
+  ):
+    designs = design2params(query, key=kwargs['key'])[feasible_index, :]
     scores = self.sim.get_fetures(designs, get_score=True, **kwargs)
     scores = scores.reshape(-1)
     print('scores:', scores)

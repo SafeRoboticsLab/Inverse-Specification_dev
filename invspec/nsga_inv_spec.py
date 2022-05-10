@@ -286,7 +286,9 @@ class NSGAInvSpec(GeneticAlgorithm):
         ind.set("fitness", 0.)
     else:
       #* Calculate the human fitness of the pop
-      _ = self.fitness_func.eval(self.pop)
+      fitness = self.fitness_func.eval(self.pop)
+      for ind, fit in zip(self.pop, fitness):
+        ind.set("fitness", fit)
       self.pop = self.survival.do(
           self.problem, self.pop, n_survive=self.pop_size, algorithm=self,
           survival_type=self.survival_type

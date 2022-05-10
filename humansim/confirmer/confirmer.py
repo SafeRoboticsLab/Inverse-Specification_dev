@@ -2,6 +2,7 @@
 # Authors: Kai-Chieh Hsu ( kaichieh@princeton.edu )
 
 from abc import ABC, abstractmethod
+from invspec.design import Design
 
 
 class Confirmer(ABC):
@@ -9,7 +10,7 @@ class Confirmer(ABC):
   def __init__(self):
     super().__init__()
 
-  def confirm(self, query, **kwargs):
+  def confirm(self, query: Design, **kwargs) -> bool:
     """Accepts or rejects this design.
 
     Args:
@@ -19,5 +20,5 @@ class Confirmer(ABC):
     return self._confirm(query, **kwargs)
 
   @abstractmethod
-  def _confirm(self, query, **kwargs):
+  def _confirm(self, query: Design, **kwargs) -> bool:
     raise NotImplementedError

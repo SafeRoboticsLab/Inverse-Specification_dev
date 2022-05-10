@@ -2,12 +2,14 @@
 import numpy as np
 
 from invspec.query_selector.random_selector import RandomQuerySelector
+from invspec.inference.inference import Inference
 
 
 class InvSpec(object):
 
   def __init__(
-      self, inference, query_selector=RandomQuerySelector(), **kwargs
+      self, inference: Inference, query_selector=RandomQuerySelector(),
+      **kwargs
   ):
     """
 

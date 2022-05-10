@@ -18,13 +18,11 @@ class RewardNN(Inference):
 
   def __init__(
       self, state_dim, action_dim, CONFIG, input_min=None, input_max=None,
-      input_normalize=True, pop_extract_type='F', beta=10, verbose=False,
-      bounded_output=True
+      input_normalize=True, beta=10, verbose=False, bounded_output=True
   ):
 
     super().__init__(
-        state_dim, action_dim, CONFIG, input_min, input_max, input_normalize,
-        pop_extract_type
+        state_dim, action_dim, CONFIG, input_min, input_max, input_normalize
     )
 
     #== PARAM ==
@@ -51,7 +49,7 @@ class RewardNN(Inference):
     self.build_NN(verbose)
     self.build_optimizer()
 
-  #== Interface with GA ==
+  #== Interface with a Design Exploration Engine ==
   def _eval(self, input, **kwargs):
     trajectories = np.expand_dims(input, axis=1)
     with torch.no_grad():

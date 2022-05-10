@@ -1,6 +1,7 @@
 # Please contact the author(s) of this library if you have any questions.
 # Authors: Kai-Chieh Hsu ( kaichieh@princeton.edu )
 
+from __future__ import annotations
 import copy
 import time
 import os
@@ -22,6 +23,7 @@ from funct_approx.config import GPConfig
 from invspec.inv_spec import InvSpec
 from invspec.query_selector.random_selector import RandomQuerySelector
 from invspec.inference.reward_GP import RewardGP
+from invspec.design import Design
 
 # others
 from utils import (set_seed, save_obj, query_and_collect, sample_and_evaluate)
@@ -82,12 +84,13 @@ def main(config_file, config_dict):
   component_values_bound = np.concatenate(
       (problem.xl[:, np.newaxis], problem.xu[:, np.newaxis]), axis=1
   )
+  query_key = "test" + str(problem.test_path)
   # endregion
 
   # region: == Define Human Simulator ==
   active_constraint_set = None
   if config_human.TYPE == 'has_const':
-    active_constraint_set = [['0', 0.2], ['1', 0.2]]
+    active_constraint_set = [('0', 0.2), ('1', 0.2)]
   if active_constraint_set is not None:
     print("Human simulator has active constraints:")
     print(active_constraint_set)
@@ -97,10 +100,11 @@ def main(config_file, config_dict):
           simulator=SWRISimParallel(
               TEMPLATE_FILE, EXEC_FILE, num_workers=config_general.NUM_WORKERS,
               prefix='human_'
-          ), beta=config_human.BETA,
+          ),
+          beta=config_human.BETA,
           active_constraint_set=active_constraint_set,
           perfect_rank=config_human.PERFECT_RANK,
-          indifference=config_human.INDIFFERENCE
+          indifference=config_human.INDIFFERENCE,
       )
   )
   # endregion
@@ -115,23 +119,16 @@ def main(config_file, config_dict):
   )
   print(vars(CONFIG), '\n')
 
-  if config_inv_spec.POP_EXTRACT_TYPE == 'F':
-    dimension = problem.n_obj
-  elif config_inv_spec.POP_EXTRACT_TYPE == 'X':
-    dimension = problem.n_var
-  else:
-    raise ValueError(
-        "The input type ({}) of inv_spec is not supported".format(
-            config_inv_spec.POP_EXTRACT_TYPE
-        )
-    )
+  dimension = problem.n_obj
+  # elif config_inv_spec.POP_EXTRACT_TYPE == 'X':
+  #   dimension = problem.n_var
+
   initial_point = np.zeros(dimension)
   if config_inv_spec.INPUT_NORMALIZE:
     input_normalize = True
-    if config_inv_spec.POP_EXTRACT_TYPE == 'F':
-      input_bound = objectives_bound
-    elif config_inv_spec.POP_EXTRACT_TYPE == 'X':
-      input_bound = component_values_bound
+    input_bound = objectives_bound
+    # elif config_inv_spec.POP_EXTRACT_TYPE == 'X':
+    # input_bound = component_values_bound
     input_min = input_bound[:, 0]
     input_max = input_bound[:, 1]
   else:
@@ -143,45 +140,34 @@ def main(config_file, config_dict):
   agent = InvSpec(
       inference=RewardGP(
           dimension, 0, CONFIG, initial_point, input_min=input_min,
-          input_max=input_max, input_normalize=input_normalize,
-          pop_extract_type=config_inv_spec.POP_EXTRACT_TYPE, verbose=True
-      ), query_selector=RandomQuerySelector()
+          input_max=input_max, input_normalize=input_normalize, verbose=True
+      ),
+      query_selector=RandomQuerySelector(),
   )
+  # endregion
+
+  # region: == Define class Design for heap ==
+  @functools.total_ordering
+  class CompareDesign:
+
+    def __init__(self, design: Design):
+      self.design = design
+
+    def __gt__(self, other: CompareDesign):
+      fb_invspec, _ = query_and_collect([self.design, other.design], query_key,
+                                        human, agent, config_inv_spec)
+      return fb_invspec == 1
+
+    def __eq__(self, other: CompareDesign):
+      #! hacky: just assume not distinguished (equal) one is lower than to
+      #! prevent asking same query for two times.
+      return False
+
   # endregion
 
   # region: == Inverse Specification Starts ==
   num_query_per_batch = int(config_general.NUM_WORKERS / 2)
   designs_heap = PriorityQueue()
-
-  # Define class Design for heap
-  @functools.total_ordering
-  class Design:
-
-    def __init__(self, features, components):
-      self.features = features
-      self.components = components
-
-    def __repr__(self):
-      return (
-          "Design: features(" + repr(self.features) + "), components("
-          + repr(self.components) + ")"
-      )
-
-    def __gt__(self, other):
-      query_features = np.concatenate((self.features, other.features), axis=0)
-      query_components = np.concatenate((self.components, other.components),
-                                        axis=0)
-
-      fb_invspec, _ = query_and_collect(
-          query_features, query_components, human, agent, config_inv_spec,
-          collect_undistinguished=False
-      )
-      return fb_invspec == 1
-
-    def __eq__(self, other):
-      #! hacky: just assume not distinguished (equal) one is lower than to
-      #! prevent asking same query for two times
-      return False
 
   # get the first valid query
   valid = False
@@ -194,29 +180,39 @@ def main(config_file, config_dict):
     )
     features = y['F']
 
-    for i in range(num_query_per_batch):
-      start, end = 2 * i, 2*i + 2
+    designs = []
+    for i in range(config_general.NUM_WORKERS):
+      designs.append(
+          Design(
+              design_id=tuple(components[i, :]),
+              physical_components={},
+              test_params={query_key: components[i, :]},
+              test_results={
+                  query_key:
+                      dict(
+                          metrics=-features[i, :],
+                          trajectory=np.empty(shape=(0,))
+                      )
+              },
+          )
+      )
 
-      query_features = -features[start:end, :]
-      query_components = components[start:end, :]
+    for i in range(num_query_per_batch):
+      query = designs[2 * i:2*i + 2]
 
       valid, _ = query_and_collect(
-          query_features, query_components, human, agent, config_inv_spec
+          query, query_key, human, agent, config_inv_spec
       )
       if valid:
         print("Get the first valid query: {}!".format(valid), end="\n\n")
         if valid == 1:
-          designs_heap.put(
-              Design(query_features[0:1, :], query_components[0:1, :])
-          )
+          designs_heap.put(CompareDesign(query[0]))
         else:
-          designs_heap.put(
-              Design(query_features[1:2, :], query_components[1:2, :])
-          )
+          designs_heap.put(CompareDesign(query[1]))
         break
     cnt += 1
 
-  # keep a heap
+  # Keeps a heap.
   stored_early = False
   for num_iter in range(config_inv_spec.MAX_ITER):
     print("\nAfter", num_iter, "main iterations", end=': ')
@@ -225,51 +221,58 @@ def main(config_file, config_dict):
     print("Collect {:d} feedback out of {:d} queries".format(n_acc_fb, n_ask))
     if stop_asking(n_acc_fb, n_ask, config_inv_spec):
       break
-    # randomly sample component values
+    # Samples component values randomly.
     components, y = sample_and_evaluate(
         problem, component_values_bound, config_general.NUM_WORKERS
     )
     features = y['F']
 
-    # compare the new designs with the old designs in the heap
+    # Compares the new designs with the old designs in the heap.
     for i in range(config_general.NUM_WORKERS):
       n_acc_fb = agent.get_number_feedback()
       n_ask = human.get_num_ranking_queries()
+      # Stores inferred fitness with less queries for comparison.
       if n_ask >= config_inv_spec.EARLY_STORE and not stored_early:
         agent.learn()
         stored_early = True
         save_obj(copy.deepcopy(agent), os.path.join(early_folder, 'agent'))
-      if stop_asking(n_acc_fb, n_ask, config_inv_spec):
+      if stop_asking(n_acc_fb, n_ask, config_inv_spec):  # Early terminates.
         break
       print("Testing", "new design", i, end=":")
-      new_feature = -features[i:i + 1, :]
-      new_component = components[i:i + 1, :]
-      # select the worst effective design or a random design in the buffer
+      new_design = Design(
+          design_id=tuple(components[i, :]),
+          physical_components={},
+          test_params={query_key: components[i, :]},
+          test_results={
+              query_key:
+                  dict(
+                      metrics=-features[i, :], trajectory=np.empty(shape=(0,))
+                  )
+          },
+      )
+      # Selects the worst effective design or a random design in the buffer
       if np.random.rand() > config_inv_spec.RANDOM_SELECT_RATE:
-        old_feature = designs_heap.queue[0].features
-        old_component = designs_heap.queue[0].components
+        old_design = designs_heap.queue[0].design
       else:
         if designs_heap.qsize() == 1:
           index = 0
         else:
           index = np.random.choice(designs_heap.qsize() - 1) + 1
-        old_feature = designs_heap.queue[index].features
-        old_component = designs_heap.queue[index].components
+        old_design = designs_heap.queue[index].design
 
-      query_features = np.concatenate((old_feature, new_feature), axis=0)
-      query_components = np.concatenate((old_component, new_component), axis=0)
+      query = [old_design, new_design]
       valid, _ = query_and_collect(
-          query_features, query_components, human, agent, config_inv_spec
+          query, query_key, human, agent, config_inv_spec
       )
       if valid == -1:  # new design is preferred
-        designs_heap.put(Design(new_feature, new_component))
+        designs_heap.put(CompareDesign(query[1]))
         print("Heap now has {} designs".format(designs_heap.qsize()))
 
   agent.learn()
   save_obj(agent, os.path.join(out_folder, 'agent'))
-  components = []
-  for design in designs_heap.queue:
-    components.append(design.components.reshape(-1))
+  components = np.array([
+      design.design.get_test_params(query_key) for design in designs_heap.queue
+  ], dtype=np.float32)
   y = {}
   components = np.array(components)
   problem._evaluate(components, y)

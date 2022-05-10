@@ -82,14 +82,6 @@ def main(config_file, config_dict):
   print('objectives', objective_names)
   print('inputs:', problem.input_names)
 
-  x = np.array([[3.99, 3.67, 3.35, 3.03, 4.42, 17.],
-                [3.99, 3.67, 3.35, 3.03, 4.42, 17.]])
-  features, oracle_scores, predicted_scores = problem.get_all(x)
-  print("\nGet ax example output from the problem:")
-  print(features)
-  print(oracle_scores)
-  print(predicted_scores)
-
   scores_bound = np.array([-1e-8, 430])
   input_names_dict = {}
   for i in range(len(problem.input_names)):
