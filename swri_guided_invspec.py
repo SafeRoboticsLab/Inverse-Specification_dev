@@ -1,10 +1,9 @@
 # Please contact the author(s) of this library if you have any questions.
 # Authors: Kai-Chieh Hsu ( kaichieh@princeton.edu )
 
-from typing import Any, Tuple, Union
+from typing import Any, Tuple, Union, List
 import time
 import os
-import functools
 import numpy as np
 import argparse
 import copy
@@ -25,6 +24,7 @@ from invspec.inv_spec import InvSpec
 from invspec.query_selector.random_selector import RandomQuerySelector
 from invspec.query_selector.upper_confidence_selector import UCBQuerySelector
 from invspec.inference.reward_GP import RewardGP
+from invspec.design import Design
 
 # design optimization module
 from pymoo.factory import (
@@ -34,21 +34,27 @@ from pymoo.algorithms.soo.nonconvex.ga import GA
 from pymoo.operators.mixed_variable_operator import (
     MixedVariableSampling, MixedVariableMutation, MixedVariableCrossover
 )
-from pymoo.core.population import Population
 
 # others
 from utils import (
     set_seed, save_obj, load_obj, query_and_collect, plot_result_pairwise,
-    plot_single_objective
+    plot_single_objective, CompareDesign, get_random_design_from_heap
 )
 from config.config import load_config
 from shutil import copyfile
 
 
 def get_indices(
-    agent: Any, pop: Union[Population, np.ndarray], num_query: int,
+    agent: InvSpec, pop: Union[List[Design], np.ndarray], num_query: int,
     query_select_type: str
 ) -> np.ndarray:
+  if isinstance(pop, list):
+    assert isinstance(pop[0], Design
+                     ), ("pop should be a list of Designs or numpy array!")
+  else:
+    assert isinstance(pop[0], np.ndarray
+                     ), ("pop should be a list of Designs or numpy array!")
+
   if query_select_type == "random_pair":
     return agent.get_query(pop, num_query)
   elif query_select_type == "rand":
@@ -63,46 +69,41 @@ def get_indices(
     )
 
 
-def get_design_from_heap(heap: PriorityQueue) -> Any:
-  assert not heap.empty(), "The heap is empty!"
-  if heap.qsize() == 1:
-    idx_heap = 0
-  else:
-    idx_heap = np.random.choice(heap.qsize() - 1) + 1
+def idx2design(idx: int, heap: PriorityQueue,
+               designs: List[Design]) -> Tuple[bool, Design]:
+  """Transforms an index to a design (from heap or candidate designs)
 
-  return heap.queue[idx_heap]
+  Args:
+      idx (int): index to select designs from features/components or heap. "-1"
+          denotes selecting from the heap.
+      heap (PriorityQueue): best designs catalog.
+      designs (List[Design])
 
-
-def idx2design(
-    idx: int, heap: PriorityQueue, features: np.ndarray, components: np.ndarray
-) -> Tuple[bool, np.ndarray, np.ndarray]:
+  Returns:
+      bool: True if the design is selected from the heap.
+      Design: the selected design.
+  """
   if idx == -1:
-    old_design = get_design_from_heap(heap)
-    return True, old_design.features, old_design.components
+    old_design = get_random_design_from_heap(heap)
+    return True, old_design.design
   else:
-    return False, features[idx:idx + 1, :], components[idx:idx + 1, :]
+    design = designs[idx]
+    return False, design
 
 
 def indices2query(
-    indices: np.ndarray, heap: PriorityQueue, features: np.ndarray,
-    components: np.ndarray
-) -> Tuple[bool, np.ndarray, np.ndarray]:
-  from_heap_0, feature_0, component_0 = idx2design(
-      indices[0], heap, features, components
-  )
-  from_heap_1, feature_1, component_1 = idx2design(
-      indices[1], heap, features, components
-  )
+    indices: np.ndarray, heap: PriorityQueue, designs: List[Design]
+) -> Tuple[bool, Tuple[Design, Design]]:
+  from_heap_0, design_0 = idx2design(indices[0], heap, designs)
+  from_heap_1, design_1 = idx2design(indices[1], heap, designs)
   has_old = from_heap_0 or from_heap_1
 
   # if there is an old design, put it to the first of the query
   if from_heap_1:
-    query_features = np.concatenate((feature_1, feature_0), axis=0)
-    query_components = np.concatenate((component_1, component_0), axis=0)
+    query = [design_1, design_0]
   else:
-    query_features = np.concatenate((feature_0, feature_1), axis=0)
-    query_components = np.concatenate((component_0, component_1), axis=0)
-  return has_old, query_features, query_components
+    query = [design_0, design_1]
+  return has_old, query
 
 
 def main(config_file: str, config_dict: dict) -> None:
@@ -158,13 +159,15 @@ def main(config_file: str, config_dict: dict) -> None:
       (problem.xl[:, np.newaxis], problem.xu[:, np.newaxis]), axis=1
   )
   scores_bound = np.array([-1e-8, 430])
+  global query_key
+  query_key = "test" + str(problem.test_path)
   # endregion
 
   # region: == Define Human Simulator ==
   print("\n== Human Simulator ==")
   active_constraint_set = None
   if config_human.TYPE == 'has_const':
-    active_constraint_set = [['0', 0.2], ['1', 0.2]]
+    active_constraint_set = [('0', 0.2), ('1', 0.2)]
   if active_constraint_set is not None:
     print("Human simulator has active constraints:")
     print(active_constraint_set)
@@ -174,10 +177,11 @@ def main(config_file: str, config_dict: dict) -> None:
           simulator=SWRISimParallel(
               TEMPLATE_FILE, EXEC_FILE, num_workers=config_general.NUM_WORKERS,
               prefix='human_'
-          ), beta=config_human.BETA,
+          ),
+          beta=config_human.BETA,
           active_constraint_set=active_constraint_set,
           perfect_rank=config_human.PERFECT_RANK,
-          indifference=config_human.INDIFFERENCE
+          indifference=config_human.INDIFFERENCE,
       )
   )
   # endregion
@@ -192,23 +196,14 @@ def main(config_file: str, config_dict: dict) -> None:
   )
   print(vars(CONFIG), '\n')
 
-  if config_inv_spec.POP_EXTRACT_TYPE == 'F':
-    dimension = len(problem.sim.objective_names)
-  elif config_inv_spec.POP_EXTRACT_TYPE == 'X':
-    dimension = len(problem.sim.input_names)
-  else:
-    raise ValueError(
-        "The input type ({}) of inv_spec is not supported".format(
-            config_inv_spec.POP_EXTRACT_TYPE
-        )
-    )
+  dimension = len(problem.sim.objective_names)
+  # dimension = len(problem.sim.input_names)
+
   initial_point = np.zeros(dimension)
   if config_inv_spec.INPUT_NORMALIZE:
     input_normalize = True
-    if config_inv_spec.POP_EXTRACT_TYPE == 'F':
-      input_bound = features_bound
-    elif config_inv_spec.POP_EXTRACT_TYPE == 'X':
-      input_bound = component_values_bound
+    input_bound = features_bound
+    # input_bound = component_values_bound
     input_min = input_bound[:, 0]
     input_max = input_bound[:, 1]
   else:
@@ -224,48 +219,42 @@ def main(config_file: str, config_dict: dict) -> None:
 
   agent = InvSpec(
       inference=RewardGP(
-          dimension, 0, CONFIG, initial_point, input_min=input_min,
-          input_max=input_max, input_normalize=input_normalize,
-          pop_extract_type=config_inv_spec.POP_EXTRACT_TYPE, verbose=True
+          dimension, 0, CONFIG, query_key, initial_point, input_min=input_min,
+          input_max=input_max, input_normalize=input_normalize, verbose=True
       ), query_selector=query_selector
   )
   # endregion
 
   # region: == Inverse Specification Inits ==
-  @functools.total_ordering
-  class Design:
-
-    def __init__(self, features, components):
-      self.features = features
-      self.components = components
-
-    def __repr__(self):
-      return (
-          "Design: features(" + repr(self.features) + "), components("
-          + repr(self.components) + ")"
-      )
-
-    def __gt__(self, other):
-      query_features = np.concatenate((self.features, other.features), axis=0)
-      query_components = np.concatenate((self.components, other.components),
-                                        axis=0)
-
-      fb_invspec, _ = query_and_collect(
-          query_features, query_components, human, agent, config_inv_spec,
-          collect_undistinguished=False
-      )
-      return fb_invspec == 1
-
-    def __eq__(self, other):
-      #! hacky: just assume "not distinguishable (equal)" is "lower than" to
-      #! prevent asking same query for two times
-      return False
-
   designs_heap = PriorityQueue()
+  CompareDesign.query_key = query_key
+  CompareDesign.human = human
+  CompareDesign.agent = agent
+  CompareDesign.config = config_inv_spec
   num_query_per_batch = int(config_general.NUM_WORKERS / 2)
   init_obj_pop = load_obj(config_ga.INIT_OBJ_PATH)
   features = -init_obj_pop.get('F')  # we want to maximize
   components = init_obj_pop.get('X')
+
+  designs = []
+  for i in range(len(components)):
+    designs.append(
+        Design(
+            design_id=tuple(components[i, :]),
+            physical_components={},
+            test_params={query_key: components[i, :]},
+            test_results={
+                query_key:
+                    dict(
+                        metrics=features[i, :],
+                        trajectory=np.empty(shape=(0,))
+                    )
+            },
+        )
+    )
+
+  scores = human.ranker.sim.get_fetures(components, get_score=True)
+  print('Initial Population:', scores.reshape(-1))
 
   for num_iter in range(config_inv_spec.MAX_ITER):
     n_ask = human.get_num_ranking_queries()
@@ -275,56 +264,50 @@ def main(config_file: str, config_dict: dict) -> None:
 
     # get sampled designs
     if designs_heap.empty():
-      indices = get_indices(
-          agent, init_obj_pop, num_query_per_batch, "random_pair"
+      indices_pairs = get_indices(
+          agent, designs, num_query_per_batch, "random_pair"
       )
     else:
-      indices = get_indices(
-          agent, init_obj_pop, num_query_per_batch,
+      indices_pairs = get_indices(
+          agent, designs, num_query_per_batch,
           config_inv_spec.QUERY_SELECTOR_TYPE
       )
 
     # interact with human
-    for idx in indices:
+    for indices in indices_pairs:
       n_ask = human.get_num_ranking_queries()
       if n_ask >= config_inv_spec.MAX_QUERIES_INIT:
         break
+
       if designs_heap.empty():
-        query_features = features[idx, :]
-        query_components = components[idx, :]
-        has_old = False
+        has_old, query = indices2query(indices, designs_heap, designs)
+        assert has_old is False
       else:
-        if config_inv_spec.QUERY_SELECTOR_TYPE == "ucb":
-          has_old, query_features, query_components = indices2query(
-              idx, designs_heap, features, components
-          )
+        if (
+            config_inv_spec.QUERY_SELECTOR_TYPE == "ucb"
+            or config_inv_spec.QUERY_SELECTOR_TYPE == "random_pair"
+        ):
+          has_old, query = indices2query(indices, designs_heap, designs)
         else:
-          idx_tmp = np.array([-1, idx], dtype=int)
-          has_old, query_features, query_components = indices2query(
-              idx_tmp, designs_heap, features, components
-          )
+          idx_tmp = np.array([-1, indices], dtype=int)
+          has_old, query = indices2query(idx_tmp, designs_heap, designs)
       valid, _ = query_and_collect(
-          query_features, query_components, human, agent, config_inv_spec
+          query, query_key, human, agent, config_inv_spec
       )
 
       add_to_heap = False
-      if designs_heap.empty() and valid:  # both designs are new
+      if designs_heap.empty() and (valid == 1):  # Both designs are new.
         query_idx = 0 if valid == 1 else 1
         add_to_heap = True
-      elif (not has_old) and valid:  # both designs are new
+      elif (not has_old) and (valid == 1):  # Both designs are new.
         query_idx = 0 if valid == 1 else 1
         add_to_heap = True
-      elif valid == -1:
+      elif valid == -1:  # The first design is old.
         query_idx = 1
         add_to_heap = True
 
       if add_to_heap:
-        designs_heap.put(
-            Design(
-                query_features[query_idx:query_idx + 1, :],
-                query_components[query_idx:query_idx + 1, :]
-            )
-        )
+        designs_heap.put(CompareDesign(query[query_idx]))
         print("Heap now has {} designs".format(designs_heap.qsize()))
 
     agent.learn()
@@ -457,8 +440,29 @@ def main(config_file: str, config_dict: dict) -> None:
     time2update = (obj.n_gen - 1) % config_inv_spec.INTERACT_PERIOD == 0
     if time2update and (obj.n_gen < config_ga.NUM_GEN) and (obj.n_gen > 1):
       print("\nAt generation {}".format(obj.n_gen))
+      # We need obj.pop since single-objective optimization only has one
+      # optimum. Also, we passed in features/components directly since using
+      # obj.pop.get("F") returns the predicted scores!
       components = obj.pop.get('X')
+      # Features are already multiplied by -1.
       features, _, _ = problem.get_all(component_values)
+
+      designs = []
+      for i in range(len(components)):
+        designs.append(
+            Design(
+                design_id=tuple(components[i, :]),
+                physical_components={},
+                test_params={query_key: components[i, :]},
+                test_results={
+                    query_key:
+                        dict(
+                            metrics=features[i, :],
+                            trajectory=np.empty(shape=(0,))
+                        )
+                },
+            )
+        )
 
       n_acc_fb = agent.get_number_feedback()
       n_want = config_inv_spec.MAX_QUERIES_PER
@@ -468,32 +472,24 @@ def main(config_file: str, config_dict: dict) -> None:
         n_select = n_want
 
       if n_select > 0:
-        # 1. pick and send queries to humans
-        # We need obj.pop since single-objective optimization only has one
-        # optimum. Also, we passed in features/components directly since using
-        # obj.pop.get("F") returns the predicted scores!
-        if config_inv_spec.POP_EXTRACT_TYPE == "F":
-          design = features
-        else:
-          design = components
-        indices = get_indices(
-            agent, design, n_select, config_inv_spec.QUERY_SELECTOR_TYPE
+        # 1. Picks and sends queries to humans.
+        indices_pairs = get_indices(
+            agent, designs, n_select, config_inv_spec.QUERY_SELECTOR_TYPE
         )
 
-        # 2. get feedback from humans
-        for idx in indices:
-          if config_inv_spec.QUERY_SELECTOR_TYPE == "ucb":
-            has_old, query_features, query_components = indices2query(
-                idx, designs_heap, features, components
-            )
+        # 2. Gets feedback from humans.
+        for indices in indices_pairs:
+          if (
+              config_inv_spec.QUERY_SELECTOR_TYPE == "ucb"
+              or config_inv_spec.QUERY_SELECTOR_TYPE == "random_pair"
+          ):
+            has_old, query = indices2query(indices, designs_heap, designs)
           else:
-            idx_tmp = [-1, idx]
-            has_old, query_features, query_components = indices2query(
-                idx_tmp, designs_heap, features, components
-            )
+            idx_tmp = [-1, indices]
+            has_old, query = indices2query(idx_tmp, designs_heap, designs)
 
           valid, _ = query_and_collect(
-              query_features, query_components, human, agent, config_inv_spec
+              query, query_key, human, agent, config_inv_spec
           )
           add_to_heap = False
           if valid == -1:
@@ -504,12 +500,7 @@ def main(config_file: str, config_dict: dict) -> None:
             add_to_heap = True
 
           if add_to_heap:
-            designs_heap.put(
-                Design(
-                    query_features[query_idx:query_idx + 1, :],
-                    query_components[query_idx:query_idx + 1, :]
-                )
-            )
+            designs_heap.put(CompareDesign(query[query_idx]))
             print("Heap now has {} designs".format(designs_heap.qsize()))
 
         n_ask = human.get_num_ranking_queries()
@@ -520,7 +511,7 @@ def main(config_file: str, config_dict: dict) -> None:
             )
         )
 
-        # 3. update fitness function
+        # 3. Updates fitness function and re-evaluates.
         _ = agent.learn()
         problem.update_inference(agent.inference)
         obj.problem = copy.deepcopy(problem)

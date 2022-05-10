@@ -1,7 +1,10 @@
 # Please contact the author(s) of this library if you have any questions.
 # Authors: Kai-Chieh Hsu ( kaichieh@princeton.edu )
 
+from __future__ import annotations
 from typing import List, Tuple, Any, Optional
+import functools
+from queue import PriorityQueue
 import numpy as np
 import random
 import matplotlib.pyplot as plt
@@ -678,6 +681,52 @@ def query_and_collect(
     return fb_invspec, inputs_to_invspec
   else:
     return None, None
+
+
+# endregion
+
+
+# region: heap
+@functools.total_ordering
+class CompareDesign:
+
+  # def __init__(
+  #     self, design: Design, query_key: str, human: HumanSimulator,
+  #     agent: InvSpec, config: Any
+  # ):
+  #   self.design = design
+  #   self.query_key = query_key
+  #   self.human = human
+  #   self.agent = agent
+  #   self.config = config
+  query_key: str
+  human: HumanSimulator
+  agent: InvSpec
+  config: Any
+
+  def __init__(self, design: Design):
+    self.design = design
+
+  def __gt__(self, other: CompareDesign):
+    fb_invspec, _ = query_and_collect([self.design, other.design],
+                                      self.query_key, self.human, self.agent,
+                                      self.config)
+    return fb_invspec == 1
+
+  def __eq__(self, other: CompareDesign):
+    #! hacky: just assume not distinguished (equal) one is lower than to
+    #! prevent asking same query for two times.
+    return False
+
+
+def get_random_design_from_heap(heap: PriorityQueue) -> Any:
+  assert not heap.empty(), "The heap is empty!"
+  if heap.qsize() == 1:
+    idx_heap = 0
+  else:
+    idx_heap = np.random.choice(heap.qsize())
+
+  return heap.queue[idx_heap]
 
 
 # endregion

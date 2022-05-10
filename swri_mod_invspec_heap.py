@@ -7,7 +7,6 @@ import time
 import os
 import numpy as np
 import argparse
-import functools
 from queue import PriorityQueue
 
 os.sys.path.append(os.path.join(os.getcwd(), 'src'))
@@ -26,7 +25,10 @@ from invspec.inference.reward_GP import RewardGP
 from invspec.design import Design
 
 # others
-from utils import (set_seed, save_obj, query_and_collect, sample_and_evaluate)
+from utils import (
+    set_seed, save_obj, query_and_collect, sample_and_evaluate, CompareDesign,
+    get_random_design_from_heap
+)
 from config.config import load_config
 from shutil import copyfile
 
@@ -120,14 +122,12 @@ def main(config_file, config_dict):
   print(vars(CONFIG), '\n')
 
   dimension = problem.n_obj
-  # elif config_inv_spec.POP_EXTRACT_TYPE == 'X':
-  #   dimension = problem.n_var
+  # dimension = problem.n_var
 
   initial_point = np.zeros(dimension)
   if config_inv_spec.INPUT_NORMALIZE:
     input_normalize = True
     input_bound = objectives_bound
-    # elif config_inv_spec.POP_EXTRACT_TYPE == 'X':
     # input_bound = component_values_bound
     input_min = input_bound[:, 0]
     input_max = input_bound[:, 1]
@@ -139,35 +139,20 @@ def main(config_file, config_dict):
 
   agent = InvSpec(
       inference=RewardGP(
-          dimension, 0, CONFIG, initial_point, input_min=input_min,
+          dimension, 0, CONFIG, query_key, initial_point, input_min=input_min,
           input_max=input_max, input_normalize=input_normalize, verbose=True
       ),
       query_selector=RandomQuerySelector(),
   )
   # endregion
 
-  # region: == Define class Design for heap ==
-  @functools.total_ordering
-  class CompareDesign:
-
-    def __init__(self, design: Design):
-      self.design = design
-
-    def __gt__(self, other: CompareDesign):
-      fb_invspec, _ = query_and_collect([self.design, other.design], query_key,
-                                        human, agent, config_inv_spec)
-      return fb_invspec == 1
-
-    def __eq__(self, other: CompareDesign):
-      #! hacky: just assume not distinguished (equal) one is lower than to
-      #! prevent asking same query for two times.
-      return False
-
-  # endregion
-
   # region: == Inverse Specification Starts ==
   num_query_per_batch = int(config_general.NUM_WORKERS / 2)
   designs_heap = PriorityQueue()
+  CompareDesign.query_key = query_key
+  CompareDesign.human = human
+  CompareDesign.agent = agent
+  CompareDesign.config = config_inv_spec
 
   # get the first valid query
   valid = False
@@ -254,11 +239,7 @@ def main(config_file, config_dict):
       if np.random.rand() > config_inv_spec.RANDOM_SELECT_RATE:
         old_design = designs_heap.queue[0].design
       else:
-        if designs_heap.qsize() == 1:
-          index = 0
-        else:
-          index = np.random.choice(designs_heap.qsize() - 1) + 1
-        old_design = designs_heap.queue[index].design
+        old_design = get_random_design_from_heap(designs_heap).design
 
       query = [old_design, new_design]
       valid, _ = query_and_collect(
