@@ -2,9 +2,9 @@
 # Authors: Kai-Chieh Hsu ( kaichieh@princeton.edu )
 
 from abc import ABC, abstractmethod
-from typing import Union
+from typing import Union, List
 import numpy as np
-from pymoo.core.population import Population
+from invspec.design import Design
 
 
 class QuerySelector(ABC):
@@ -18,16 +18,15 @@ class QuerySelector(ABC):
     self.num_query_times = 0  # number of query times (different to #queries)
 
   def do(
-      self, pop: Union[Population, np.ndarray], n_queries: int, n_designs: int,
-      **kwargs
+      self, pop: Union[List[Design], np.ndarray], n_queries: int,
+      n_designs: int, **kwargs
   ) -> np.ndarray:
     """Choose from the population new individuals to be selected.
 
     Args:
-        pop (:class:`~pymoo.core.population.Population`): The population
-            which should be selected from. Some criteria from the design or
-            objective space might be used for the selection. Therefore,
-            only the number of individual might be not enough.
+        pop (List[Design]): Some criteria from the design or objective space
+            might be used for the selection. Therefore, only the number of
+            individual might be not enough.
         n_queries (int): Number of queries to send.
         n_designs (int): Number of designs in each query.
 
@@ -47,7 +46,7 @@ class QuerySelector(ABC):
 
   @abstractmethod
   def _do(
-      self, pop: Union[Population, np.ndarray], n_queries: int, n_designs: int,
-      **kwargs
+      self, pop: Union[List[Design], np.ndarray], n_queries: int,
+      n_designs: int, **kwargs
   ) -> np.ndarray:
     raise NotImplementedError

@@ -1,11 +1,11 @@
 # Please contact the author(s) of this library if you have any questions.
 # Authors: Kai-Chieh Hsu ( kaichieh@princeton.edu )
 
-from typing import Union
+from typing import Union, List
 import numpy as np
-from pymoo.core.population import Population
 
 from invspec.query_selector.base_query_selector import QuerySelector
+from invspec.design import Design
 
 
 class RandomQuerySelector(QuerySelector):
@@ -14,8 +14,8 @@ class RandomQuerySelector(QuerySelector):
     super().__init__()
 
   def _do(
-      self, pop: Union[Population, np.ndarray], n_queries: int, n_designs: int,
-      **kwargs
+      self, pop: Union[List[Design], np.ndarray], n_queries: int,
+      n_designs: int, **kwargs
   ) -> np.ndarray:
     assert n_designs == 2, "Only implemented for pairs of designs!"
     n_pop = len(pop)

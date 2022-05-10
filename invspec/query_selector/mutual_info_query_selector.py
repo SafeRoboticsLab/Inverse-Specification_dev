@@ -4,11 +4,11 @@
 # Active selection is modified from:
 # https://github.com/Stanford-ILIAD/active-preference-based-gpr
 
-from typing import Union, Callable
+from typing import Union, Callable, List
 import numpy as np
-from pymoo.core.population import Population
 
 from invspec.query_selector.base_query_selector import QuerySelector
+from invspec.design import Design
 
 
 class MutualInfoQuerySelector(QuerySelector):
@@ -18,10 +18,10 @@ class MutualInfoQuerySelector(QuerySelector):
 
   def _do(
       self,
-      pop: Union[Population, np.ndarray],
+      pop: Union[List[Design], np.ndarray],
       n_queries: int,
       n_designs: int,
-      eval_func: Callable[[Union[Population, np.ndarray]], float],
+      eval_func: Callable[[Union[List[Design], np.ndarray]], float],
       update_times: int,
       **kwargs,
   ) -> np.ndarray:
@@ -30,8 +30,8 @@ class MutualInfoQuerySelector(QuerySelector):
     the metric is based on mutual information (a.k.a information gain).
 
     Args:
-        pop (pymoo.core.population.Population | numpy.ndarray): The population
-            which should be selected from.
+        pop (List[Design] | numpy.ndarray): The population which should be
+            selected from.
         n_queries (int): Number of queries to send.
         n_designs (int): Number of designs in each query.
         eval_func (Callable): the function for evaluating queries, which

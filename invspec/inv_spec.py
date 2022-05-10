@@ -1,8 +1,9 @@
-# from abc import abstractmethod
+from typing import List, Union, Optional, Callable
 import numpy as np
 
 from invspec.query_selector.random_selector import RandomQuerySelector
 from invspec.inference.inference import Inference
+from invspec.design import Design
 
 
 class InvSpec(object):
@@ -30,7 +31,10 @@ class InvSpec(object):
     return self.inference.eval(pop, **kwargs)
 
   def get_query(
-      self, pop, n_queries, n_designs=2, eval_func=None, **kwargs
+      self, pop: Union[List[Design],
+                       np.ndarray], n_queries: int, n_designs: int = 2,
+      eval_func: Optional[Callable[[Union[List[Design], np.ndarray], float],
+                                   np.ndarray]] = None, **kwargs
   ) -> np.ndarray:
     if eval_func is None:
       eval_func = self.inference.eval_query
