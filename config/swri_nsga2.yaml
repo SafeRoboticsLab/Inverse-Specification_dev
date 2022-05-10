@@ -1,5 +1,5 @@
 GENERAL:
-  SEED: 0
+  SEED: 1
   CHECK_GEN: 1
   NUM_WORKERS: 9 
   NAME: init
