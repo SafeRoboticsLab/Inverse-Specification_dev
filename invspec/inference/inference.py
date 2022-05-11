@@ -36,7 +36,7 @@ class Inference(ABC):
     self.memory = ReplayMemory(CONFIG.MEMORY_CAPACITY, CONFIG.SEED)
 
   #region: == Interface with a Design Exploration Engine ==
-  def design2metrics(
+  def design2metrics4inference(
       self, designs: Union[List[Design], np.ndarray]
   ) -> np.ndarray:
     """
@@ -72,7 +72,7 @@ class Inference(ABC):
     Returns:
         np.ndarray: float, fitness of the designs in the current population
     """
-    input = self.design2metrics(pop)
+    input = self.design2metrics4inference(pop)
     fitness = self._eval(input, **kwargs)
 
     return fitness
@@ -99,7 +99,7 @@ class Inference(ABC):
     Args:
         query: a pair of designs.
     """
-    input = self.design2metrics(query)
+    input = self.design2metrics4inference(query)
     metric = self._eval_query(input, **kwargs)
     return metric
 

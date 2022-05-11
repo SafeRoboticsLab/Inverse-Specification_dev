@@ -189,7 +189,7 @@ class RewardGP(Inference):
     Returns:
         np.ndarray: _description_
     """
-    Xstar = self.design2metrics(design)
+    Xstar = self.design2metrics4inference(design)
     mean = self.post_mean(Xstar)
     var = np.maximum(self.post_cov(Xstar).diagonal(), 0)
     std = np.sqrt(var)
