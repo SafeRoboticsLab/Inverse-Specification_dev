@@ -250,6 +250,7 @@ def main(config_file: str, config_dict: dict) -> None:
                         trajectory=np.empty(shape=(0,))
                     )
             },
+            global_features={},
         )
     )
 
@@ -461,6 +462,7 @@ def main(config_file: str, config_dict: dict) -> None:
                             trajectory=np.empty(shape=(0,))
                         )
                 },
+                global_features={},
             )
         )
 

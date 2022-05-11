@@ -179,6 +179,7 @@ def main(config_file, config_dict):
                           trajectory=np.empty(shape=(0,))
                       )
               },
+              global_features={},
           )
       )
 
@@ -234,6 +235,7 @@ def main(config_file, config_dict):
                       metrics=-features[i, :], trajectory=np.empty(shape=(0,))
                   )
           },
+          global_features={},
       )
       # Selects the worst effective design or a random design in the buffer
       if np.random.rand() > config_inv_spec.RANDOM_SELECT_RATE:
