@@ -29,8 +29,10 @@ class Design():
       test_results: Mapping[str, Mapping[str, np.ndarray]],
       global_features: dict[str, np.ndarray], design_id: Any
   ) -> None:
-    self.design_param = DesignParameters(physical_components, test_params)
-    self.fwd_features = ForwardFeatures(test_results, global_features)
+    self.implementation_param = ImplementationParameters(
+        physical_components, test_params
+    )
+    self.perf_features = PerformanceFeatures(test_results, global_features)
     self.id = design_id
     self.catalog.add(design_id)
 
@@ -39,19 +41,19 @@ class Design():
 
   def get_components(self,
                      key: str) -> np.ndarray | Tuple[np.ndarray, np.ndarray]:
-    return self.design_param.get_components(key)
+    return self.implementation_param.get_components(key)
 
   def get_test_params(self, key: str) -> np.ndarray:
-    return self.design_param.get_test_params(key)
+    return self.implementation_param.get_test_params(key)
 
   def get_test_metrics(self, key: str) -> np.ndarray:
-    return self.fwd_features.get_test_metrics(key)
+    return self.perf_features.get_test_metrics(key)
 
   def get_trajectory(self, key: str) -> np.ndarray:
-    return self.fwd_features.get_trajectory(key)
+    return self.perf_features.get_trajectory(key)
 
 
-class DesignParameters():
+class ImplementationParameters():
 
   def __init__(
       self, physical_components: dict, test_params: dict[str, np.ndarray]
@@ -77,7 +79,7 @@ class DesignParameters():
     return self.test_params[key]
 
 
-class ForwardFeatures():
+class PerformanceFeatures():
 
   def __init__(
       self, test_results: Mapping[str, Mapping[str, np.ndarray]],

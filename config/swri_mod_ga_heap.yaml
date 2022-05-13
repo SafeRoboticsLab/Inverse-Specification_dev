@@ -1,9 +1,9 @@
 GENERAL:
-  SEED: 9
+  SEED: 1
   CHECK_GEN: 1
   NUM_WORKERS: 10
-  NAME: test_heap_200/test
-  AGENT_PATH: scratch/swri/modular/agent_heap_200/test/agent
+  NAME: test_heap_200/example_PI
+  AGENT_PATH: scratch/swri/modular/agent_heap_200/example_PI/agent
 
 GA:
   POP_SIZE: 25

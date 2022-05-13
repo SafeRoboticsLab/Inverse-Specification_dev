@@ -608,7 +608,7 @@ def sample_and_evaluate(
 
 # region: interaction with human
 def get_infeasible_designs(
-    fwd_features: np.ndarray,
+    perf_features: np.ndarray,
     active_constraint_set: Optional[List[Tuple[str, float]]]
 ) -> np.ndarray:
   """
@@ -617,7 +617,7 @@ def get_infeasible_designs(
   design is infeasible.
 
   Args:
-      fwd_features (float array): designs' features.
+      perf_features (float array): designs' performance features.
       active_constraint_set (list): active constraints. Each entry is a tuple
           of (feature_idx, threshold). Note that if the feature index starts
           with "-", this means this constraint is an upper bound.
@@ -626,7 +626,7 @@ def get_infeasible_designs(
       np.ndarray: bool, indicates which design is infeasible.
   """
 
-  num_design = fwd_features.shape[0]
+  num_design = perf_features.shape[0]
   infeasible_indicator = np.full(shape=(num_design,), fill_value=False)
   if active_constraint_set is not None:
     for i in range(num_design):
@@ -638,11 +638,11 @@ def get_infeasible_designs(
           thr_as_upper_bound = True
         feature_idx = int(feature_idx)
         if thr_as_upper_bound:
-          if fwd_features[i, feature_idx] > threshold:
+          if perf_features[i, feature_idx] > threshold:
             flag = True
             break
         else:
-          if fwd_features[i, feature_idx] < threshold:
+          if perf_features[i, feature_idx] < threshold:
             flag = True
             break
       infeasible_indicator[i] = flag

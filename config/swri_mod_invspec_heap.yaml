@@ -1,7 +1,7 @@
 GENERAL:
-  SEED: 8
-  EARLY_NAME: agent_heap_50q/test
-  NAME: agent_heap_200/test
+  SEED: 1
+  EARLY_NAME: agent_heap_50q/example_PI
+  NAME: agent_heap_200/example_PI
   NUM_WORKERS: 10
 
 INV_SPEC:

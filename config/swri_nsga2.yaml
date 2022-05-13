@@ -2,7 +2,7 @@ GENERAL:
   SEED: 1
   CHECK_GEN: 1
   NUM_WORKERS: 9 
-  NAME: init
+  NAME: init_guided
   INIT_OBJ_PATH: null
   # INIT_OBJ_PATH: /Users/kaichieh/Desktop/SDCPS/src/scratch/swri/NSGA2/default/objective_20
 
