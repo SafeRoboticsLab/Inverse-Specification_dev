@@ -2,7 +2,16 @@
 Modified from OpenAI Gym's implementation (Created by Oleg Klimov).
 Author: Kai-Chieh Hsu (kaichieh@princeton.edu)
 
---- Below are the description from OpenAI Gym ---
+Notes:
+  1. Box2D uses the coordinate: +x: right and +y: up.
+  2. We define the body frame: +x: right and +y: up, which means the body frame
+    is exactly the same as the world frame when yaw=0. This is different from
+    the gym's implementation. To make it clear, we change `tip` to `body_y` and
+    `side` to `body_x`.
+  3. The force uses only the offset direction (previously the force is directly
+    multiplied by the offset).
+
+--- Below are the description from the OpenAI Gym ---
 Rocket trajectory optimization is a classic topic in Optimal Control.
 
 According to Pontryagin's maximum principle it's optimal to fire engine full
@@ -42,8 +51,8 @@ FPS = 50
 # affects how fast-paced the game is, forces should be adjusted as well
 SCALE = 30.0
 
-MAIN_ENGINE_POWER = 13.0
-SIDE_ENGINE_POWER = 0.6
+MAIN_ENGINE_POWER = 6.0
+SIDE_ENGINE_POWER = 0.3
 
 INITIAL_RANDOM = 1000.0  # Set 1500 to make game harder
 
@@ -54,6 +63,8 @@ LEG_DOWN = 18
 LEG_W, LEG_H = 2, 8
 LEG_SPRING_TORQUE = 40
 
+# Default engine positions
+MAIN_ENGINE_HEIGHT = -4.0
 SIDE_ENGINE_HEIGHT = 14.0
 SIDE_ENGINE_AWAY = 12.0
 
@@ -91,8 +102,20 @@ class LunarLander(gym.Env, EzPickle):
 
   continuous = False
 
-  def __init__(self):
+  def __init__(self, config=None):
     EzPickle.__init__(self)
+    self.main_engine_height = MAIN_ENGINE_HEIGHT / SCALE
+    self.side_engine_height = SIDE_ENGINE_HEIGHT / SCALE
+    self.side_engine_away = SIDE_ENGINE_AWAY / SCALE
+
+    if config is not None:
+      if hasattr(config, MAIN_ENGINE_HEIGHT):
+        self.main_engine_height = float(config.MAIN_ENGINE_HEIGHT) / SCALE
+      if hasattr(config, SIDE_ENGINE_HEIGHT):
+        self.side_engine_height = float(config.SIDE_ENGINE_HEIGHT) / SCALE
+      if hasattr(config, SIDE_ENGINE_AWAY):
+        self.side_engine_away = float(config.SIDE_ENGINE_AWAY) / SCALE
+
     self.seed()
     self.viewer = None
 
@@ -241,6 +264,22 @@ class LunarLander(gym.Env, EzPickle):
 
     self.drawlist = [self.lander] + self.legs
 
+    # pos = self.lander.position
+    # vel = self.lander.linearVelocity
+    # state = np.array([
+    #     (pos.x - VIEWPORT_W/SCALE/2) / (VIEWPORT_W/SCALE/2),
+    #     (pos.y - (self.helipad_y + LEG_DOWN/SCALE)) / (VIEWPORT_H/SCALE/2),
+    #     vel.x * (VIEWPORT_W/SCALE/2) / FPS,
+    #     vel.y * (VIEWPORT_H/SCALE/2) / FPS,
+    #     self.lander.angle,
+    #     20.0 * self.lander.angularVelocity / FPS,
+    #     1.0 if self.legs[0].ground_contact else 0.0,
+    #     1.0 if self.legs[1].ground_contact else 0.0,
+    # ])
+    # print("After reset")
+    # with np.printoptions(precision=2, suppress=False):
+    #   print(state)
+
     return self.step(np.array([0, 0]) if self.continuous else 0)[0]
 
   def _create_particle(self, mass, x, y, ttl):
@@ -275,10 +314,12 @@ class LunarLander(gym.Env, EzPickle):
       )
 
     # Engines
-    tip = (math.sin(self.lander.angle), math.cos(self.lander.angle))
-    side = (-tip[1], tip[0])
-    dispersion = [self.np_random.uniform(-1.0, +1.0) / SCALE for _ in range(2)]
+    body_x = np.array([np.cos(self.lander.angle), np.sin(self.lander.angle)])
+    body_y = np.array([-np.sin(self.lander.angle), np.cos(self.lander.angle)])
+    # Adds noises in the impulse position.
+    dispersion = self.np_random.uniform(-1.0, +1.0, size=2) / SCALE
 
+    # Computes the impulse: dp = F*dt
     m_power = 0.0
     if ((self.continuous and action[0] > 0.0)
         or (not self.continuous and action == 2)):
@@ -288,12 +329,14 @@ class LunarLander(gym.Env, EzPickle):
         assert m_power >= 0.5 and m_power <= 1.0
       else:
         m_power = 1.0
-      ox = (
-          tip[0] * (4/SCALE + 2 * dispersion[0]) + side[0] * dispersion[1]
-      )  # 4 is move a bit downwards, +-2 for randomness
-      oy = -tip[1] * (4/SCALE + 2 * dispersion[0]) - side[1] * dispersion[1]
+      m_offset = (
+          self.main_engine_height * body_y + dispersion[0] * body_x
+          + 2 * dispersion[1] * body_y
+      )
+      m_offset_dir = m_offset / np.linalg.norm(m_offset)
       impulse_pos = (
-          self.lander.position[0] + ox, self.lander.position[1] + oy
+          self.lander.position[0] + m_offset[0],
+          self.lander.position[1] + m_offset[1]
       )
       p = self._create_particle(
           3.5,  # 3.5 is here to make particle speed adequate
@@ -302,14 +345,17 @@ class LunarLander(gym.Env, EzPickle):
           m_power,
       )  # particles are just a decoration
       p.ApplyLinearImpulse(
-          (ox * MAIN_ENGINE_POWER * m_power, oy * MAIN_ENGINE_POWER * m_power),
+          (
+              m_offset_dir[0] * MAIN_ENGINE_POWER * m_power,
+              m_offset_dir[1] * MAIN_ENGINE_POWER * m_power
+          ),
           impulse_pos,
           True,
       )
       self.lander.ApplyLinearImpulse(
           (
-              -ox * MAIN_ENGINE_POWER * m_power,
-              -oy * MAIN_ENGINE_POWER * m_power
+              -m_offset_dir[0] * MAIN_ENGINE_POWER * m_power,
+              -m_offset_dir[1] * MAIN_ENGINE_POWER * m_power
           ),
           impulse_pos,
           True,
@@ -327,28 +373,29 @@ class LunarLander(gym.Env, EzPickle):
       else:
         direction = action - 2  # Maps to -1 and 1.
         s_power = 1.0
-      ox = (
-          tip[0] * dispersion[0] + side[0] *
-          (3 * dispersion[1] + direction*SIDE_ENGINE_AWAY/SCALE)
+      s_offset = (
+          self.side_engine_height * body_y
+          + direction * self.side_engine_away * body_x
+          + 3 * dispersion[0] * body_x + dispersion[1] * body_y
       )
-      oy = (
-          -tip[1] * dispersion[0] - side[1] *
-          (3 * dispersion[1] + direction*SIDE_ENGINE_AWAY/SCALE)
-      )
+      s_offset_dir = s_offset / np.linalg.norm(s_offset)
       impulse_pos = (
-          self.lander.position[0] + ox - tip[0] * SIDE_ENGINE_HEIGHT / SCALE,
-          self.lander.position[1] + oy + tip[1] * SIDE_ENGINE_HEIGHT / SCALE,
+          self.lander.position[0] + s_offset[0],
+          self.lander.position[1] + s_offset[1],
       )
       p = self._create_particle(0.7, impulse_pos[0], impulse_pos[1], s_power)
       p.ApplyLinearImpulse(
-          (ox * SIDE_ENGINE_POWER * s_power, oy * SIDE_ENGINE_POWER * s_power),
+          (
+              s_offset_dir[0] * SIDE_ENGINE_POWER * s_power,
+              s_offset_dir[1] * SIDE_ENGINE_POWER * s_power
+          ),
           impulse_pos,
           True,
       )
       self.lander.ApplyLinearImpulse(
           (
-              -ox * SIDE_ENGINE_POWER * s_power,
-              -oy * SIDE_ENGINE_POWER * s_power
+              -s_offset_dir[0] * SIDE_ENGINE_POWER * s_power,
+              -s_offset_dir[1] * SIDE_ENGINE_POWER * s_power
           ),
           impulse_pos,
           True,
@@ -520,6 +567,9 @@ def demo_heuristic_lander(env, seed=None, render=False):
   total_reward = 0
   steps = 0
   s = env.reset()
+  env.render()
+  # input()
+
   while True:
     a = heuristic(env, s)
     s, r, done, info = env.step(a)
@@ -532,7 +582,9 @@ def demo_heuristic_lander(env, seed=None, render=False):
 
     if steps % 20 == 0 or done:
       print("observations:", " ".join(["{:+0.2f}".format(x) for x in s]))
+      print(f"yaw: {s[4]/np.pi*180:.0f}")
       print("step {} total_reward {:+0.2f}".format(steps, total_reward))
+      # input()
     steps += 1
     if done:
       break
@@ -542,5 +594,4 @@ def demo_heuristic_lander(env, seed=None, render=False):
 
 
 if __name__ == "__main__":
-  print(SCALE)
   demo_heuristic_lander(LunarLander(), render=True)
