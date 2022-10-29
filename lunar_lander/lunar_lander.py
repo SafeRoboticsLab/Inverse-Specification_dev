@@ -34,8 +34,9 @@ To see a heuristic landing, run:
     python gym/envs/box2d/lunar_lander.py
 """
 
-import math
+import os
 import numpy as np
+import matplotlib.pyplot as plt
 
 import Box2D
 from Box2D.b2 import (
@@ -562,12 +563,19 @@ def heuristic(env, s):
   return a
 
 
-def demo_heuristic_lander(env, seed=None, render=False):
+def demo_heuristic_lander(env, seed=None, render=False, mode="human"):
   env.seed(seed)
   total_reward = 0
   steps = 0
   s = env.reset()
-  env.render()
+  rgb = env.render(mode=mode)
+
+  if mode == "rgb_array":
+    fig_folder = os.path.join("figure", "demo_heu_lander")
+    os.makedirs(fig_folder, exist_ok=True)
+    fig, ax = plt.subplots(1, 1, figsize=(6, 4))
+    ax.imshow(rgb)
+    fig.savefig(os.path.join(fig_folder, f"{steps:d}.png"))
   # input()
 
   while True:
@@ -576,13 +584,14 @@ def demo_heuristic_lander(env, seed=None, render=False):
     total_reward += r
 
     if render:
-      still_open = env.render()
-      if not still_open:
-        break
+      rgb = env.render(mode=mode)
+      if mode == "rgb_array":
+        ax.clear()
+        ax.imshow(rgb)
+        fig.savefig(os.path.join(fig_folder, f"{steps:d}.png"))
 
     if steps % 20 == 0 or done:
       print("observations:", " ".join(["{:+0.2f}".format(x) for x in s]))
-      print(f"yaw: {s[4]/np.pi*180:.0f}")
       print("step {} total_reward {:+0.2f}".format(steps, total_reward))
       # input()
     steps += 1
@@ -594,4 +603,4 @@ def demo_heuristic_lander(env, seed=None, render=False):
 
 
 if __name__ == "__main__":
-  demo_heuristic_lander(LunarLander(), render=True)
+  demo_heuristic_lander(LunarLander(), render=True, mode='human')

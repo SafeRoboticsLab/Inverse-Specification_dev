@@ -5,6 +5,7 @@
 .vscode/
 swri/template/*
 dataset/*
+figure/
 .ipynb_checkpoints/*
 
 # 
