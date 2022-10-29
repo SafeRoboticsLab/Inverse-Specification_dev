@@ -282,13 +282,13 @@ class LunarLander(gym.Env, EzPickle):
 
     return self.step(np.array([0, 0]) if self.continuous else 0)[0]
 
-  def _create_particle(self, mass, x, y, ttl):
+  def _create_particle(self, density, x, y, ttl):
     p = self.world.CreateDynamicBody(
         position=(x, y),
         angle=0.0,
         fixtures=fixtureDef(
             shape=circleShape(radius=2 / SCALE, pos=(0, 0)),
-            density=mass,
+            density=density,
             friction=0.1,
             categoryBits=0x0100,
             maskBits=0x001,  # collide only with ground
