@@ -568,9 +568,9 @@ def demo_heuristic_lander(env, seed=None, render=False, mode="human"):
   total_reward = 0
   steps = 0
   s = env.reset()
-  rgb = env.render(mode=mode)
 
-  if mode == "rgb_array":
+  if render and mode == "rgb_array":
+    rgb = env.render(mode=mode)
     fig_folder = os.path.join("figure", "demo_heu_lander")
     os.makedirs(fig_folder, exist_ok=True)
     fig, ax = plt.subplots(1, 1, figsize=(6, 4))
