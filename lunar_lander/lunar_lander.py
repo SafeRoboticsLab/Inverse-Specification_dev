@@ -68,6 +68,8 @@ LEG_SPRING_TORQUE = 40
 MAIN_ENGINE_HEIGHT = -4.0
 SIDE_ENGINE_HEIGHT = 14.0
 SIDE_ENGINE_AWAY = 12.0
+SIDE_ENGINE_HEIGHT_AUX = -8.0
+SIDE_ENGINE_AWAY_AUX = 14.0
 
 VIEWPORT_W = 600
 VIEWPORT_H = 400
@@ -108,14 +110,34 @@ class LunarLander(gym.Env, EzPickle):
     self.main_engine_height = MAIN_ENGINE_HEIGHT / SCALE
     self.side_engine_height = SIDE_ENGINE_HEIGHT / SCALE
     self.side_engine_away = SIDE_ENGINE_AWAY / SCALE
-
+    self.lander_poly = LANDER_POLY
+    self.auxiliary = False  #TODO: adds description.
     if config is not None:
-      if hasattr(config, MAIN_ENGINE_HEIGHT):
-        self.main_engine_height = float(config.MAIN_ENGINE_HEIGHT) / SCALE
-      if hasattr(config, SIDE_ENGINE_HEIGHT):
-        self.side_engine_height = float(config.SIDE_ENGINE_HEIGHT) / SCALE
-      if hasattr(config, SIDE_ENGINE_AWAY):
-        self.side_engine_away = float(config.SIDE_ENGINE_AWAY) / SCALE
+      self.main_engine_height = (
+          getattr(config, "main_engine_height", MAIN_ENGINE_HEIGHT) / SCALE
+      )
+      self.side_engine_height = (
+          getattr(config, "side_engine_height", SIDE_ENGINE_HEIGHT) / SCALE
+      )
+      self.side_engine_away = (
+          getattr(config, "side_engine_away", SIDE_ENGINE_AWAY) / SCALE
+      )
+      self.lander_poly = getattr(config, "lander_poly", LANDER_POLY)
+      self.auxiliary = getattr(config, "auxiliary", False)
+      if self.auxiliary:
+        self.side_engine_height_aux = (
+            getattr(config, "side_engine_height_aux", SIDE_ENGINE_HEIGHT_AUX)
+            / SCALE
+        )
+        self.side_engine_away_aux = (
+            getattr(config, "side_engine_away_aux", SIDE_ENGINE_AWAY_AUX)
+            / SCALE
+        )
+        self.side_engine_away_aux = (
+            getattr(config, "side_engine_away_aux", SIDE_ENGINE_AWAY_AUX)
+            / SCALE
+        )
+        self.aux_ratio = getattr(config, "aux_ratio", 0.5)
 
     self.seed()
     self.viewer = None
@@ -207,7 +229,7 @@ class LunarLander(gym.Env, EzPickle):
         angle=0.0,
         fixtures=fixtureDef(
             shape=polygonShape(
-                vertices=[(x / SCALE, y / SCALE) for x, y in LANDER_POLY]
+                vertices=[(x / SCALE, y / SCALE) for x, y in self.lander_poly]
             ),
             density=5.0,
             friction=0.1,
@@ -318,7 +340,10 @@ class LunarLander(gym.Env, EzPickle):
     body_x = np.array([np.cos(self.lander.angle), np.sin(self.lander.angle)])
     body_y = np.array([-np.sin(self.lander.angle), np.cos(self.lander.angle)])
     # Adds noises in the impulse position.
-    dispersion = self.np_random.uniform(-1.0, +1.0, size=2) / SCALE
+    if self.auxiliary:
+      dispersion = self.np_random.uniform(-1.0, +1.0, size=6) / SCALE
+    else:
+      dispersion = self.np_random.uniform(-1.0, +1.0, size=4) / SCALE
 
     # Computes the impulse: dp = F*dt
     m_power = 0.0
@@ -377,8 +402,9 @@ class LunarLander(gym.Env, EzPickle):
       s_offset = (
           self.side_engine_height * body_y
           + direction * self.side_engine_away * body_x
-          + 3 * dispersion[0] * body_x + dispersion[1] * body_y
+          + 3 * dispersion[2] * body_x + dispersion[3] * body_y
       )
+
       s_offset_dir = s_offset / np.linalg.norm(s_offset)
       impulse_pos = (
           self.lander.position[0] + s_offset[0],
@@ -401,6 +427,41 @@ class LunarLander(gym.Env, EzPickle):
           impulse_pos,
           True,
       )
+      if self.auxiliary:
+        # -direction for diagonal
+        s_offset_aux = (
+            self.side_engine_height_aux * body_y
+            - direction * self.side_engine_away * body_x
+            + 3 * dispersion[4] * body_x + dispersion[5] * body_y
+        )
+
+        s_offset_dir_aux = s_offset_aux / np.linalg.norm(s_offset_aux)
+        impulse_pos_aux = (
+            self.lander.position[0] + s_offset_aux[0],
+            self.lander.position[1] + s_offset_aux[1],
+        )
+        p_aux = self._create_particle(
+            0.7, impulse_pos_aux[0], impulse_pos_aux[1],
+            s_power * self.aux_ratio
+        )
+        p_aux.ApplyLinearImpulse(
+            (
+                s_offset_dir_aux[0] * SIDE_ENGINE_POWER * s_power
+                * self.aux_ratio, s_offset_dir_aux[1] * SIDE_ENGINE_POWER
+                * s_power * self.aux_ratio
+            ),
+            impulse_pos_aux,
+            True,
+        )
+        self.lander.ApplyLinearImpulse(
+            (
+                -s_offset_dir_aux[0] * SIDE_ENGINE_POWER * s_power
+                * self.aux_ratio, -s_offset_dir_aux[1] * SIDE_ENGINE_POWER
+                * s_power * self.aux_ratio
+            ),
+            impulse_pos_aux,
+            True,
+        )
 
     self.world.Step(1.0 / FPS, 6 * 30, 2 * 30)
 
@@ -571,7 +632,7 @@ def demo_heuristic_lander(env, seed=None, render=False, mode="human"):
 
   if render and mode == "rgb_array":
     rgb = env.render(mode=mode)
-    fig_folder = os.path.join("figure", "demo_heu_lander")
+    fig_folder = os.path.join("figure", "demo_heu_lander", "progress")
     os.makedirs(fig_folder, exist_ok=True)
     fig, ax = plt.subplots(1, 1, figsize=(6, 4))
     ax.imshow(rgb)
@@ -603,4 +664,4 @@ def demo_heuristic_lander(env, seed=None, render=False, mode="human"):
 
 
 if __name__ == "__main__":
-  demo_heuristic_lander(LunarLander(), render=True, mode='human')
+  demo_heuristic_lander(LunarLander(), render=True, mode='human', seed=0)
