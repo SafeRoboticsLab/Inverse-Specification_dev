@@ -1,12 +1,11 @@
 GENERAL:
-  SEED: 8
-  EARLY_NAME: agent_heap_50q/9
-  NAME: agent_heap_200/9
+  SEED: 1
+  EARLY_NAME: agent_heap_50q/example_PI
+  NAME: agent_heap_200/example_PI
   NUM_WORKERS: 10
 
 INV_SPEC:
   INFER_TYPE: gp
-  POP_EXTRACT_TYPE: F
   BETA: 10.  # confidence coefficient
   INPUT_NORMALIZE: true
   NUM_REQUIRED_QUERY: 3

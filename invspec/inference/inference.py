@@ -2,13 +2,13 @@
 # Authors: Kai-Chieh Hsu ( kaichieh@princeton.edu )
 
 from abc import ABC, abstractmethod
-from typing import Any, Optional, Tuple, Union
+from typing import Any, Optional, Tuple, Union, List
 import warnings
 import numpy as np
 from collections import namedtuple
-from pymoo.core.population import Population
 
 from funct_approx.memory import ReplayMemory
+from invspec.design import Design, design2metrics
 
 Feedback = namedtuple('Feedback', ['q_1', 'q_2', 'f'])
 
@@ -16,11 +16,11 @@ Feedback = namedtuple('Feedback', ['q_1', 'q_2', 'f'])
 class Inference(ABC):
 
   def __init__(
-      self, state_dim: int, action_dim: int, CONFIG: Any,
+      self, state_dim: int, action_dim: int, CONFIG: Any, key: str,
       input_min: Optional[np.ndarray] = None,
-      input_max: Optional[np.ndarray] = None, input_normalize: bool = True,
-      pop_extract_type: str = 'F'
+      input_max: Optional[np.ndarray] = None, input_normalize: bool = True
   ) -> None:
+    assert isinstance(key, str), "Key should be a string!"
 
     super().__init__()
     self.update_times = 0
@@ -30,43 +30,41 @@ class Inference(ABC):
     self.input_min = input_min
     self.input_max = input_max
     self.input_normalize = input_normalize
-    self.pop_extract_type = pop_extract_type
+    self.key = key  # how to retrive features from designs
 
     #= OBJECTS
     self.memory = ReplayMemory(CONFIG.MEMORY_CAPACITY, CONFIG.SEED)
 
-  #region: == Interface with GA ==
-  def design2input(self, designs: Union[Population, np.ndarray]) -> np.ndarray:
-    if isinstance(designs, Population):
-      if self.pop_extract_type == 'F':
-        # add '-' because we want to maximize, but GA wants to minimize
-        ind = -1.
-      elif self.pop_extract_type == 'X':
-        ind = 1.
-      else:
-        raise ValueError(
-            "The pop_extract_type ({}) is not supported".format(
-                self.pop_extract_type
-            )
-        )
-      input = ind * designs.get(self.pop_extract_type)
-    elif isinstance(designs, np.ndarray):
-      input = designs
+  #region: == Interface with a Design Exploration Engine ==
+  def design2metrics4inference(
+      self, designs: Union[List[Design], np.ndarray]
+  ) -> np.ndarray:
+    """
+    Transforms designs into metrics based on forward features (from the
+        simulator). The self.key specifies which test run to retrive.
+        Normalizes the metrics if specified when constructed.
+
+    Args:
+        designs (Union[List[Design], np.ndarray]): a list of Designs or
+            retrieved metrics.
+
+    Returns:
+        np.ndarray: appropriate inputs for the downstream inference engine.
+    """
+    if isinstance(designs, np.ndarray):
+      inputs = designs
     else:
-      raise ValueError(
-          "Designs must be either pymoo:Population or numpy:array!"
-      )
+      inputs = design2metrics(designs, self.key)
     if self.input_normalize:  # normalize by a priori input_min and input_max
-      input = self.normalize(input)
+      inputs = self.normalize(inputs)
 
-    return input.astype('float32')
+    return inputs.astype('float32')
 
-  def eval(self, pop: Union[Population, np.ndarray],
-           **kwargs) -> Union[Population, np.ndarray]:
+  def eval(self, pop: Union[List[Design], np.ndarray], **kwargs) -> np.ndarray:
     """
     A wrapper for fitness evaluation. If the designs are presented in the
-    format of Pymoo:population, we extract the obejectives and normalize if
-    needed.
+    format of Design, we extract the forward metrics and normalize it
+    (optional).
 
     Args:
         pop: The population which should be evaluated.
@@ -74,15 +72,10 @@ class Inference(ABC):
     Returns:
         np.ndarray: float, fitness of the designs in the current population
     """
-    input = self.design2input(pop)
+    input = self.design2metrics4inference(pop)
     fitness = self._eval(input, **kwargs)
 
-    if isinstance(pop, Population):
-      for i, ind in enumerate(pop):
-        ind.set("fitness", fitness[i])
-      return pop
-    elif isinstance(pop, np.ndarray):
-      return fitness
+    return fitness
 
   @abstractmethod
   def _eval(self, input: np.ndarray, **kwargs) -> np.ndarray:
@@ -97,7 +90,7 @@ class Inference(ABC):
     raise NotImplementedError
 
   def eval_query(
-      self, query: Union[Population, np.ndarray], **kwargs
+      self, query: Union[List[Design], np.ndarray], **kwargs
   ) -> float:
     """
     Evaluates the query. For example, the evaluation can base on information
@@ -106,7 +99,7 @@ class Inference(ABC):
     Args:
         query: a pair of designs.
     """
-    input = self.design2input(query)
+    input = self.design2metrics4inference(query)
     metric = self._eval_query(input, **kwargs)
     return metric
 

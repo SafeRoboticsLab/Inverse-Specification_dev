@@ -23,15 +23,15 @@
 # self.W  # Hessian of negative log likelihood, - log p(feedback | GP_values)
 # self.fmode  # mode of p(GP_values | feedback, queries)
 
-from typing import Tuple, Union
+from typing import Tuple, Union, List
 import numpy as np
 
 np.seterr(invalid='ignore')
 from scipy import stats
 from scipy.optimize import minimize, Bounds, OptimizeResult
-from pymoo.core.population import Population
 
 from invspec.inference.inference import Inference
+from invspec.design import Design
 
 
 def logistic(x, coeff):
@@ -52,14 +52,14 @@ def logistic(x, coeff):
 class RewardGP(Inference):
 
   def __init__(
-      self, state_dim, action_dim, CONFIG, initial_point, input_min=None,
-      input_max=None, input_normalize=True, pop_extract_type='F', verbose=False
+      self, state_dim, action_dim, CONFIG, key: str, initial_point,
+      input_min=None, input_max=None, input_normalize=True, verbose=False
   ):
     assert state_dim+action_dim == len(initial_point), \
         "fature size doesn't match"
     super().__init__(
-        state_dim, action_dim, CONFIG, input_min, input_max, input_normalize,
-        pop_extract_type
+        state_dim, action_dim, CONFIG, key, input_min, input_max,
+        input_normalize
     )
     self.dim = len(initial_point)  # number of features
 
@@ -77,7 +77,7 @@ class RewardGP(Inference):
     assert self.mode == 'Boltzmann' or self.mode == 'probit',\
         "unsupported mode!"
 
-  #region: == Interface with GA ==
+  #region: == Interface with a Design Exploration Engine ==
   def _eval_query(self, input: np.ndarray, **kwargs) -> float:
     """Evaluates a query.
 
@@ -177,7 +177,7 @@ class RewardGP(Inference):
         return result1 - c_2
 
   def get_ucb(
-      self, design: Union[Population, np.ndarray], tradeoff: float
+      self, design: Union[List[Design], np.ndarray], tradeoff: float
   ) -> np.ndarray:
     """Computes the upper confidence bound given designs.
 
@@ -189,7 +189,7 @@ class RewardGP(Inference):
     Returns:
         np.ndarray: _description_
     """
-    Xstar = self.design2input(design)
+    Xstar = self.design2metrics4inference(design)
     mean = self.post_mean(Xstar)
     var = np.maximum(self.post_cov(Xstar).diagonal(), 0)
     std = np.sqrt(var)

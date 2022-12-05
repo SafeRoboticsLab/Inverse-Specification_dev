@@ -1,11 +1,11 @@
 # Please contact the author(s) of this library if you have any questions.
 # Authors: Kai-Chieh Hsu ( kaichieh@princeton.edu )
 
-from typing import Union, Callable
+from typing import Union, Callable, List
 import numpy as np
-from pymoo.core.population import Population
 
 from invspec.query_selector.base_query_selector import QuerySelector
+from invspec.design import Design
 
 
 class UCBQuerySelector(QuerySelector):
@@ -16,10 +16,11 @@ class UCBQuerySelector(QuerySelector):
 
   def _do(
       self,
-      pop: Union[Population, np.ndarray],
+      pop: Union[List[Design], np.ndarray],
       n_queries: int,
       n_designs: int,
-      eval_func: Callable[[Union[Population, np.ndarray], float], np.ndarray],
+      eval_func: Callable[[Union[List[Design], np.ndarray], float],
+                          np.ndarray],
       update_times: int,
       **kwargs,
   ) -> np.ndarray:
@@ -28,8 +29,8 @@ class UCBQuerySelector(QuerySelector):
     current population.
 
     Args:
-        pop (pymoo.core.population.Population | numpy.ndarray): The population
-            which should be selected from.
+        pop (List[Design] | numpy.ndarray): The population which should be
+            selected from.
         n_queries (int): Number of queries to send.
         n_designs (int): Number of designs in each query.
         eval_func (Callable): the function for evaluating designs, which

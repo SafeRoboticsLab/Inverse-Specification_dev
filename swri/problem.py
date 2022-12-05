@@ -14,7 +14,8 @@ from pymoo.core.problem import ElementwiseProblem, Problem
 class SWRIWrapper(ABC):
 
   def __init__(
-      self, values_to_extract=None, objective_names=None, obj_indicator=None
+      self, values_to_extract=None, objective_names=None, obj_indicator=None,
+      test_path=5
   ):
     """A wrapper to deal with input transformation and output extraction.
 
@@ -50,14 +51,15 @@ class SWRIWrapper(ABC):
       self.values_to_extract = values_to_extract
       self.objective_names = objective_names
       self.obj_indicator = obj_indicator
-    self.input_names = np.array([
+    self.input_names = [
         'control_Q_position',
         'control_Q_velocity',
         'control_Q_angular_velocity',
         'control_Q_angles',
         'control_R',
         'control_requested_lateral_speed',
-    ])
+    ]
+    self.test_path = test_path
     self.input_mask = ['real', 'real', 'real', 'real', 'real', 'real']
     self.n_obj = self.values_to_extract.shape[0]
 
@@ -74,7 +76,7 @@ class SWRIWrapper(ABC):
         # region: fixed parameters
         control_iaileron=5,
         control_iflap=6,
-        control_i_flight_path=5,
+        control_i_flight_path=self.test_path,
         control_requested_vertical_speed=0,
         # endregion
         # region: inputs, LQR parameters
@@ -272,6 +274,7 @@ class SWRIProblemInvSpec(Problem):
 
     # InvSpec
     self.inference = copy.deepcopy(inference)
+    self.test_path = self.sim.test_path
 
   def update_inference(self, inference):
     del self.inference
@@ -280,7 +283,6 @@ class SWRIProblemInvSpec(Problem):
   def get_all(self, X):
     features, oracle_scores = self.sim.get_fetures(X, get_all=True)
     # negative sign changes from minimization to maximization
-    # inputs_to_invspec = self.inference.normalize(-features)
     inputs_to_invspec = -features
     predicted_scores = self.inference.eval(inputs_to_invspec)
     return -features, oracle_scores.reshape(-1), predicted_scores.reshape(-1)
@@ -291,6 +293,4 @@ class SWRIProblemInvSpec(Problem):
     )
     # inputs_to_invspec = self.inference.normalize(-features)
     inputs_to_invspec = -features
-    out['F'] = -self.inference.eval(
-        inputs_to_invspec
-    )  # pymoo wants to minimize
+    out['F'] = -self.inference.eval(inputs_to_invspec)  # pymoo minimizes
